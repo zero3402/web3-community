@@ -1,10 +1,10 @@
 # =============================================================================
-# 🐳 Backend Gradle-based Dockerfile (API Gateway Template)
+# 🐳 Backend Dockerfile (Spring Boot + WebFlux + Kotlin - Gradle)
 # =============================================================================
-# 설명: Spring Boot API Gateway를 위한 Gradle 기반 Docker 이미지
-# 목적: API Gateway 최적화, 라우팅, 인증, CORS 처리
-# 특징: Spring Cloud Gateway, Gradle 빌드, JVM 튜닝
-# 실무 팁: 멀티 스테이지 빌드, 캐시 최적화, 보안 강화
+# 설명: Spring Boot 마이크로서비스 최적화 Gradle 기반 Docker 이미지
+# 목적: Gradle 빌드 시스템을 사용한 최적화된 프로덕션 이미지 생성
+# 특징: Spring Boot + WebFlux + Kotlin, Gradle 기반 빌드
+# 실무 팁: Gradle Caching, Layer 최적화, JVM 튜닝
 # =============================================================================
 
 # =============================================================================
@@ -14,7 +14,7 @@ FROM eclipse-temurin:17-jdk-alpine AS builder
 
 # 빌드 스테이지 라벨
 LABEL stage=builder \
-      service=api-gateway \
+      service=backend \
       technology=spring-boot-webflux-kotlin-gradle
 
 # =============================================================================
@@ -23,7 +23,7 @@ LABEL stage=builder \
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# Gradle Wrapper 사용자 설정 (보안)
+# Gradle 래퍼를 위한 사용자 설정
 RUN addgroup --system --gid 1000 gradle && \
     adduser --system --uid 1000 --gid gradle gradle
 
@@ -31,39 +31,34 @@ RUN addgroup --system --gid 1000 gradle && \
 RUN mkdir -p /home/gradle/.gradle && \
     chown -R gradle:gradle /home/gradle
 
-# =============================================================================
-# 📋 의존성 다운로드 (캐싱 최적화)
-# =============================================================================
-# Gradle Wrapper 파일 먼저 복사 (빌드 속도 향상)
+# ⚡ 빌드 속도 최적화: Gradle 설정 파일 먼저 복사
 COPY --chown=gradle:gradle gradle/wrapper/ gradle/wrapper/
-COPY --chown=gradle:gradle gradlew build.gradle.kts settings.gradle.kts .
+COPY --chown=gradle:gradle gradlew build.gradle settings.gradle ./
 
 # Gradle Wrapper 실행 권한 설정
 RUN chmod +x gradlew
 
 # =============================================================================
-# 🧪 코드 복사 및 의존성 캐싱
+# 📋 의존성 다운로드 (캐싱 최적화)
 # =============================================================================
-# Gradle Wrapper 사용으로 빌드 환경 일관성 보장
+# Gradle 의존성 다운로드 (캐시를 위한 빌드없이 실행)
 USER gradle
-
-# Gradle 의존성 다운로드 (오프라인 빌드 없이)
 RUN ./gradlew dependencies --no-daemon --configuration-cache || true
 
-# 소스 코드 복사
+# 🔧 소스 코드 복사
 COPY --chown=gradle:gradle src/ src/
 
 # =============================================================================
-# 🎨 API Gateway 빌드
+# 🎨 애플리케이션 빌드
 # =============================================================================
-# Gradle 빌드 옵션 설정
+# Gradle 옵션 설정
 ARG GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
 
-# Spring Boot API Gateway 빌드
-# --no-daemon: 컨테이너 환경에 적합
+# Spring Boot 애플리케이션 빌드
+# --no-daemon: Gradle 데몬 사용 안함 (컨테이너 환경에 적합)
 # --configuration-cache: 빌드 캐싱
 # --build-cache: 증분 빌드 지원
-RUN ./gradlew clean bootJar -x test --no-daemon --configuration-cache --build-cache
+RUN ./gradlew clean build -x test --no-daemon --configuration-cache --build-cache
 
 # =============================================================================
 # 🚀 프로덕션 스테이지 (JRE 전용)
@@ -72,13 +67,13 @@ FROM eclipse-temurin:17-jre-alpine AS production
 
 # 프로덕션 스테이지 라벨
 LABEL stage=production \
-      service=api-gateway \
-      technology=spring-boot-webflux-kotlin-jre-gradle
+      service=backend \
+      technology=spring-boot-webflux-kotlin-jre
 
 # =============================================================================
 # 🔧 JRE 최적화 및 보안 설정
 # =============================================================================
-# API Gateway 전용 사용자 생성 (보안: root 사용자 금지)
+# 애플리케이션 사용자 생성 (보안: root 사용자 금지)
 RUN addgroup -g 1001 -S spring && \
     adduser -S spring -u 1001 -G spring
 
@@ -96,32 +91,23 @@ RUN chown spring:spring app.jar && \
     chmod 500 app.jar
 
 # =============================================================================
-# ⚙️ JVM 튜닝 설정 (API Gateway + WebFlux 최적화)
+# ⚙️ JVM 튜닝 설정 (Spring Boot + WebFlux 최적화)
 # =============================================================================
-# API Gateway 특화 JVM 옵션
+# JVM 옵션 (메모리, GC, 성능 최적화)
 ENV JAVA_OPTS="-server \
-              -Xms512m \
-              -Xmx1024m \
+              -Xms256m \
+              -Xmx512m \
               -XX:+UseG1GC \
               -XX:MaxGCPauseMillis=200 \
               -XX:+UseContainerSupport \
               -XX:MaxRAMPercentage=75.0 \
-              -XX:+UseStringDeduplication \
-              -XX:+OptimizeStringConcat \
               -Djava.security.egd=file:/dev/./urandom \
               -Dspring.profiles.active=kubernetes"
 
-# Spring Boot API Gateway 특화 설정
+# Spring Boot 특화 설정
 ENV SPRING_OPTS="--spring.jmx.enabled=false \
-                 --management.endpoints.web.exposure.include=health,info,metrics,prometheus,gateway \
-                 --management.endpoint.health.show-details=always \
-                 --management.endpoint.gateway.enabled=true \
-                 --spring.cloud.gateway.httpserver.compression=true \
-                 --spring.cloud.gateway.httpserver.compression.mime-types=text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json \
-                 --spring.cloud.gateway.routes.default-filters[0]=Retry=3 \
-                 --spring.cloud.gateway.routes.default-filters[1]=CircuitBreaker \
-                 --spring.cloud.gateway.discovery.locator.enabled=true \
-                 --spring.cloud.gateway.discovery.locator.lower-case-service-id=true"
+                 --management.endpoints.web.exposure.include=health,info,metrics,prometheus \
+                 --management.endpoint.health.show-details=always"
 
 # =============================================================================
 # 🌐 포트 및 네트워크 설정
@@ -153,16 +139,15 @@ ARG VCS_REF
 ARG VERSION
 
 # OCI 이미지 스펙 준수 라벨
-LABEL org.opencontainers.image.title="Web3 Community API Gateway" \
-      org.opencontainers.image.description="Spring Cloud Gateway with WebFlux, Kotlin, and Gradle build system" \
+LABEL org.opencontainers.image.title="Web3 Community Backend Service" \
+      org.opencontainers.image.description="Spring Boot WebFlux service with Gradle build system" \
       org.opencontainers.image.url="https://github.com/your-org/web3-community" \
       org.opencontainers.image.source="https://github.com/your-org/web3-community" \
       org.opencontainers.image.version="${VERSION:-latest}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.vendor="Web3 Community Team" \
-      org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.documentation="https://docs.spring.io/spring-cloud-gateway"
+      org.opencontainers.image.licenses="MIT"
 
 # =============================================================================
 # 🛡️ 보안 강화
@@ -183,13 +168,44 @@ USER spring
 # 🚀 개발/디버그용 (개발 시 사용)
 # =============================================================================
 # 개발 환경으로 빌드 시:
-# docker build --target builder -t web3-community/api-gateway:dev -f docker/backend/api-gateway/Dockerfile .
-# docker run -p 8080:8080 -p 5005:5005 web3-community/api-gateway:dev ./gradlew bootRun -Dspring-boot.run.jvmArguments="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
-
-# API Gateway 테스트용 명령어
-# curl -X GET http://localhost:8080/actuator/gateway/routes
-# curl -X GET http://localhost:8080/actuator/health
-# curl -X GET http://localhost:8080/api/users/test
+# docker build --target builder -t web3-community/backend:dev .
+# docker run -p 8080:8080 -p 5005:5005 web3-community/backend:dev ./gradlew bootRun -Dspring-boot.run.jvmArguments="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
 
 # 🎯 기본 JVM 디버그 포트 설정 (개발용)
 # EXPOSE 5005
+
+# =============================================================================
+# 🌟 Gradle 특화 팁
+# =============================================================================
+# 
+# Gradle Docker 빌드 최적화:
+# - Gradle Wrapper 사용으로 버전 일관성 보장
+# - Gradle 캐싱으로 빌드 속도 향상
+# - Configuration Cache로 재빌드 시간 단축
+# - Build Cache로 증분 빌드 지원
+#
+# Multi-project 구조 예시:
+# ├── build.gradle (root)
+# ├── settings.gradle
+# ├── api-gateway/
+# │   └── build.gradle
+# ├── user-service/
+# │   └── build.gradle
+# └── ...
+#
+# 빌드 예시:
+# # 전체 프로젝트 빌드
+# ./gradlew build
+# 
+# # 특정 프로젝트만 빌드
+# ./gradlew :api-gateway:build
+# 
+# # Docker 이미지 빌드
+# docker build -t web3-community/api-gateway:gradle -f docker/backend/api-gateway/Dockerfile .
+#
+# 실무 팁:
+# - Gradle Enterprise를 사용하면 빌드 성능 더 향상
+# - Remote Cache를 사용하여 CI/CD 속도 개선
+# - Custom Tasks로 배포 프로세스 자동화
+# - Dependency Management으로 라이브러리 버전 일관성
+# =============================================================================

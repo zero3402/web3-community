@@ -1,22 +1,21 @@
 # =============================================================================
-# 🐳 Frontend Dockerfile (Vue.js 3)
+# 🐳 Frontend Dockerfile (Vue.js 3 - Gradle/반응형)
 # =============================================================================
-# 설명: Vue.js 3 프론트엔드 애플리케이션 최적화 Docker 이미지
+# 설명: Vue.js 3 반응형 프론트엔드 애플리케이션 최적화 Docker 이미지
 # 목적: 멀티 스테이지 빌드로 최소한의 프로덕션 이미지 생성
-# 특징: 개발 환경과 프로덕션 환경 분리, 핫 리로드 지원
-# 실무 팁: BuildKit 사용, 캐시 최적화, 보안 강화
+# 특징: Vite 빌드 툴, 반응형 디자인, Tailwind CSS
+# 실무 팁: BuildKit 사용, 캐시 최적화, 반응형 웹 지원
 # =============================================================================
 
 # =============================================================================
-# 🏗️ 빌드 스테이지 (개발/빌드 환경)
+# 🏗️ 빌드 스테이지 (Node.js 기반)
 # =============================================================================
-# 사용할 노드 이미지 (LTS 버전으로 안정성 확보)
 FROM node:18-alpine AS builder
 
-# 빌드 스테이지 라벨 (컨테이너 식별용)
+# 빌드 스테이지 라벨
 LABEL stage=builder \
       service=frontend \
-      technology=vue3
+      technology=vue3-vite
 
 # =============================================================================
 # 📦 의존성 설치 및 빌드 환경 설정
@@ -25,7 +24,6 @@ LABEL stage=builder \
 WORKDIR /app
 
 # ⚡ 빌드 속도 최적화: package.json과 package-lock.json 먼저 복사
-# 이렇게 하면 코드 변경 시 의존성 재설치 방지 (캐시 활용)
 COPY package*.json ./
 
 # 📋 의존성 설치 (시간 절약을 위한 npm 최적화 옵션)
@@ -43,11 +41,11 @@ ARG VUE_APP_API_BASE_URL=http://localhost:8080
 ENV NODE_ENV=${NODE_ENV} \
     VUE_APP_API_BASE_URL=${VUE_APP_API_BASE_URL}
 
-# Vue.js 프로덕션 빌드
+# Vite 기반 Vue.js 프로덕션 빌드
 RUN npm run build
 
 # =============================================================================
-# 🚀 프로덕션 스테이지 (실행 환경)
+# 🚀 프로덕션 스테이지 (Nginx 웹서버)
 # =============================================================================
 # 최소한의 웹서버 이미지 (Nginx Alpine)
 FROM nginx:alpine AS production
@@ -55,17 +53,13 @@ FROM nginx:alpine AS production
 # 프로덕션 스테이지 라벨
 LABEL stage=production \
       service=frontend \
-      technology=nginx
+      technology=nginx-responsive
 
 # =============================================================================
-# 🔧 Nginx 설정 최적화
+# 🔧 Nginx 설정 최적화 (반응형 웹 지원)
 # =============================================================================
 # 기본 Nginx 설정 제거
 RUN rm /etc/nginx/conf.d/default.conf
-
-# 최적화된 Nginx 설정 복사 (별도 파일 필요시)
-# COPY nginx.conf /etc/nginx/nginx.conf
-# COPY default.conf /etc/nginx/conf.d/
 
 # =============================================================================
 # 📦 애플리케이션 배포
@@ -112,7 +106,7 @@ ARG VERSION
 
 # 라벨 정보 (OCI 이미지 스펙 준수)
 LABEL org.opencontainers.image.title="Web3 Community Frontend" \
-      org.opencontainers.image.description="Vue.js 3 frontend for Web3 Community platform" \
+      org.opencontainers.image.description="Vue.js 3 responsive frontend for Web3 Community platform" \
       org.opencontainers.image.url="https://github.com/your-org/web3-community" \
       org.opencontainers.image.source="https://github.com/your-org/web3-community" \
       org.opencontainers.image.version="${VERSION:-latest}" \
@@ -138,4 +132,4 @@ USER nginx
 # =============================================================================
 # 개발 환경으로 빌드 시:
 # docker build --target builder -t web3-community/frontend:dev .
-# docker run -p 3000:3000 -v $(pwd):/app -v /app/node_modules web3-community/frontend:dev npm run serve
+# docker run -p 3000:3000 -v $(pwd):/app -v /app/node_modules web3-community/frontend:dev npm run dev

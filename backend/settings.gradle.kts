@@ -1,0 +1,7 @@
+include ':common'
+include ':api-gateway'
+include ':user-service'
+include ':post-service'
+include ':comment-service'
+include ':auth-service'
+include ':notification-service'
