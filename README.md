@@ -1,4 +1,4 @@
-# 🌐 Web3 Community Platform
+# 🌐 Web3 Community Platform(현재 만드는 중입니다.)
 
 ## 📋 프로젝트 개요
 
