@@ -1,0 +1,551 @@
+# =============================================================================
+# 📡 Kafka Service Configuration
+# =============================================================================
+# 설명: Kafka 브로커 및 토픽 설정을 위한 스프링 부트 콘피규레이션
+# 목적: 브로커별 토픽 설정, 컨슈머 그룹, 시리얼라이저
+# 특징: 재시도 전랜올력, 보안, 성능 최적화
+# =============================================================================
+
+# =============================================================================
+# 📡 기본 카프카 설정
+# =============================================================================
+spring:
+  kafka:
+    # =============================================================================
+    # 📡 브로커 서버 설정 (애플리케이션에서 다른 브로커 연결)
+    # =============================================================================
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-service:9092}
+    security:
+      protocol: SASL_PLAINTEXT
+      mechanisms: PLAIN
+    sasl:
+      jaas:
+        username: ${KAFKA_SASL_USERNAME:kafkaclient}
+        password: ${KAFKA_SASL_PASSWORD:kafkaclientpass}
+    
+    # =============================================================================
+    # 📋 프로듀서 설정
+    # =============================================================================
+    producer:
+      # 재시도 설정 (중요!)
+      retries: 3
+      acks: all  # 모든 리플리카가 확인될 때까지 대기
+      delivery-timeout: 30000  # 30초
+      linger-ms: 0  # 메시지 전송 후 바로 리턴
+      batch-size: 1  # 배치 크기 (나중에 맞춤)
+      
+      # 압축 설정
+      compression-type: gzip
+      properties:
+        # 메시지 키 직렬화 (선택적)
+        key.serializer: org.apache.kafka.common.serialization.StringSerializer
+        value.serializer: org.apache.kafka.common.serialization.StringSerializer
+        
+        # 성능 최적화
+        buffer.memory: 33554432  # 32MB 버퍼
+        batch.size: 16384      # 16KB 배치 크기
+        linger.ms: 5         # 5ms 동안 메시지 모아
+        
+        # 보안 설정
+        security.protocol: SASL_PLAINTEXT
+        sasl.mechanism: PLAIN
+        sasl.jaas.username: ${KAFKA_SASL_USERNAME:kafkaclient}
+        sasl.jaas.password: ${KAFKA_SASL_PASSWORD:kafkaclientpass}
+    
+    # =============================================================================
+    # 📥 컨슈머 설정
+    # =============================================================================
+    consumer:
+      # 그룹 ID 설정 (중요!)
+      group-id: ${KAFKA_CONSUMER_GROUP:notification-service}
+      
+      # 오프셋 초기 설정
+      auto-offset-reset: earliest
+      enable-auto-commit: false  # 수동 오프셋 제어
+      key-deserializer: org.apache.kafka.common.serialization.StringSerializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      
+      # 세션 타임아웃 설정
+      max-poll-records: 100
+      poll-timeout: 1000
+      session-timeout-ms: 30000
+      heartbeat-interval-ms: 3000
+      
+      # 내결성 처리량 제어
+      max-poll-interval-ms: 5000
+      fetch-max-bytes: 1048576  # 1MB
+      fetch-min-bytes: 1
+      
+      # 재시도 설정
+      retry:
+        max-attempts: 3
+        backoff:
+          delay: 1000
+          max-delay: 10000
+          multiplier: 2
+      
+      # 보안 설정
+      properties:
+        security.protocol: SASL_PLAINTEXT
+        sasl.mechanism: PLAIN
+        sasl.jaas.username: ${KAFKA_SASL_USERNAME:kafkaclient}
+        sasl.jaas.password: ${KAFKA_SASL_PASSWORD:kafkaclientpass}
+        
+        # 성능 최적화
+        fetch.min.bytes: 1
+        fetch.max.wait.ms: 500
+        max.partition.fetch.bytes: 1048576
+        
+        # 트랜잭션 격리를 위한 아이소레이션 설정
+        isolation.level: read_committed
+        auto.commit.interval.ms: 1000
+        
+        # 디버깅
+        client.id: ${spring.application.name}-${random.uuid}
+
+# =============================================================================
+# 📋 토픽 설정 (애플리케이션별)
+# =============================================================================
+web3:
+  kafka:
+    topics:
+      # =============================================================================
+      # 📝 게시글 관련 토픽
+      # =============================================================================
+      posts:
+        name: ${KAFKA_TOPIC_POSTS:posts}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 2592000000  # 30일
+          segment.ms: 86400000       # 1일
+          max.message.bytes: 10485760  # 10MB
+          compression.type: producer
+      
+      post-events:
+        name: ${KAFKA_TOPIC_POST_EVENTS:post-events}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: compact
+          retention.ms: 604800000   # 7일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 5242880  # 5MB
+      
+      post-analytics:
+        name: ${KAFKA_TOPIC_POST_ANALYTICS:post-analytics}
+        partitions: 2
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 5184000000  # 60일
+          segment.bytes: 1073741824     # 1GB
+      
+      # =============================================================================
+      # 💬 댓글 관련 토픽
+      # =============================================================================
+      comments:
+        name: ${KAFKA_TOPIC_COMMENTS:comments}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 2592000000  # 30일
+          segment.ms: 86400000       # 1일
+          max.message.bytes: 10485760  # 10MB
+      
+      comment-events:
+        name: ${KAFKA_TOPIC_COMMENT_EVENTS:comment-events}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: compact
+          retention.ms: 604800000   # 7일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 5242880  # 5MB
+      
+      # =============================================================================
+      # 👥 사용자 관련 토픽
+      # =============================================================================
+      user-events:
+        name: ${KAFKA_TOPIC_USER_EVENTS:user-events}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 5184000000  # 60일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 10485760  # 10MB
+      
+      user-profile-updates:
+        name: ${KAFKA_TOPIC_USER_PROFILE_UPDATES:user-profile-updates}
+        partitions: 2
+        replication-factor: 1
+        config:
+          cleanup.policy: compact
+          retention.ms: 777600000  # 90일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 2097152  # 2MB
+      
+      # =============================================================================
+      # 🔔 알림 관련 토픽
+      # =============================================================================
+      notifications:
+        name: ${KAFKA_TOPIC_NOTIFICATIONS:notifications}
+        partitions: 5
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 604800000   # 7일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 5242880  # 5MB
+          compression.type: producer
+      
+      notification-priority:
+        name: ${KAFKA_TOPIC_NOTIFICATION_PRIORITY:notification-priority}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 259200000   # 30일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 10485760  # 10MB
+          compression.type: producer
+      
+      # =============================================================================
+      # 📊 시스템 이벤트
+      # =============================================================================
+      system-events:
+        name: ${KAFKA_TOPIC_SYSTEM_EVENTS:system-events}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 7776000000  # 90일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 10485760  # 10MB
+          compression.type: producer
+      
+      audit-logs:
+        name: ${KAFKA_TOPIC_AUDIT_LOGS:audit-logs}
+        partitions: 2
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 15552000000  # 180일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 5242880  # 5MB
+          compression.type: producer
+      
+      # =============================================================================
+      # 🔍 보안 관련 이벤트
+      # =============================================================================
+      security-events:
+        name: ${KAFKA_TOPIC_SECURITY_EVENTS:security-events}
+        partitions: 3
+        replication-factor: 1
+        config:
+          cleanup.policy: delete
+          retention.ms: 5184000000  # 60일
+          segment.ms: 86400000     # 1일
+          max.message.bytes: 10485760  # 10MB
+          compression.type: producer
+          message.format.version: 2
+          ssl: true
+
+# =============================================================================
+# 🎯 Spring Cloud Stream 설정
+# =============================================================================
+spring:
+  cloud:
+    stream:
+      # =============================================================================
+      # 📥 바인딩 설정
+      # =============================================================================
+      kafka:
+        binder:
+          brokers: ${spring.kafka.bootstrap-servers}
+          auto-create-topics: true
+          producer:
+            configuration:
+              security:
+                protocol: SASL_PLAINTEXT
+                sasl:
+                  mechanism: PLAIN
+                  jaas:
+                    username: ${KAFKA_SASL_USERNAME:kafkaclient}
+                    password: ${KAFKA_SASL_PASSWORD:kafkaclientpass}
+          
+          # 공통 설정
+          default-replication-factor: 1
+          min-partition-count: 3
+          auto-add-partitions: true
+          
+          # 성능 설정
+          producer:
+            configuration:
+              acks: all
+              retries: 3
+              batch-size: 16384
+              linger-ms: 5
+              compression-type: gzip
+              buffer.memory: 33554432
+          
+          # 컨슈머 설정
+          consumer:
+            configuration:
+              auto-offset-reset: earliest
+              enable-auto-commit: false
+              session.timeout.ms: 30000
+              max-poll-records: 100
+              poll-timeout: 1000
+              fetch-min-bytes: 1
+              fetch-max-wait-ms: 500
+              heartbeat-interval-ms: 3000
+              security:
+                protocol: SASL_PLAINTEXT
+                sasl:
+                  mechanism: PLAIN
+                  jaas:
+                    username: ${KAFKA_SASL_USERNAME:kafkaclient}
+                    password: ${KAFKA_SASL_PASSWORD:kafkaclientpass}
+
+# =============================================================================
+# 📊 애플리케이션 설정 (Spring Boot Cloud Stream)
+# =============================================================================
+spring:
+  application:
+    name: notification-service
+  profiles:
+      active: ${SPRING_PROFILES_ACTIVE:kubernetes}
+
+# Web3 Community Platform Notification Service 설정
+web3:
+  notification:
+    # =============================================================================
+    # 📧 알림 서비스 설정
+    # =============================================================================
+    email:
+      enabled: ${EMAIL_ENABLED:false}
+      smtp:
+        host: ${EMAIL_HOST:smtp.gmail.com}
+        port: ${EMAIL_PORT:587}
+        username: ${EMAIL_USERNAME:}
+        password: ${EMAIL_PASSWORD:}
+        properties:
+          mail:
+            smtp:
+              auth: true
+              starttls:
+                enable: ${EMAIL_STARTTLS_ENABLED:true}
+                required: true
+              ssl:
+                  trust: ${EMAIL_SSL_TRUST:*}
+    
+    # =============================================================================
+    # 📱 모바일 알림 설정
+    # =============================================================================
+    mobile:
+      enabled: true
+      fcm:
+        enabled: false
+        server-key: ${FCM_SERVER_KEY:}
+        sender-id: ${FCM_SENDER_ID:}
+      apns:
+        enabled: false
+        team-id: ${APNS_TEAM_ID}
+        key-path: ${APNS_KEY_PATH}
+        key-password: ${APNS_KEY_PASSWORD:}
+    
+    # =============================================================================
+    # 📊 푸시 알림 설정 (고려사항)
+    # =============================================================================
+    push:
+      enabled: true
+      vapid:
+        public-key: ${VAPID_PUBLIC_KEY:}
+        private-key: ${VAPID_PRIVATE_KEY}
+        subject: "Web3 Community 알림"
+    
+    # =============================================================================
+    # ⏰ 알림 채널 설정
+    # =============================================================================
+    channels:
+      in-app:
+        enabled: true
+        max-queue-size: 100
+        batch-size: 10
+      email:
+        enabled: true
+        batch-size: 50
+        async: true
+      push:
+        enabled: true
+        batch-size: 10
+      websocket:
+        enabled: true
+
+    # =============================================================================
+    # 📊 알림 채널 설정
+    # =============================================================================
+    channels:
+      in-app:
+        enabled: true
+        max-queue-size: 100
+        batch-size: 10
+      email:
+        enabled: true
+        batch-size: 50
+        async: true
+      push:
+        enabled: true
+        batch-size: 10
+      websocket:
+        enabled: true
+
+    # =============================================================================
+    # ⏰ 알림 규칙 설정
+    # =============================================================================
+    rules:
+      post-created:
+        channels: [in-app, email, push]
+        template: post-created
+        priority: high
+        rate-limit:
+          per-user: 5 per minute
+      comment-replied:
+        channels: [in-app, email]
+        template: comment-replied
+        priority: medium
+      like-received:
+        channels: [in-app]
+        template: like-received
+        priority: low
+        rate-limit:
+          per-user: 10 per minute
+      mention:
+        channels: [in-app, email]
+        template: mention
+        priority: high
+      system-maintenance:
+        channels: [in-app, email, push]
+        template: system-maintenance
+        priority: critical
+        
+      # =============================================================================
+      # 🕒 알림 정책 (차단/허용)
+      # =============================================================================
+      policies:
+        rate-limiting:
+          enabled: true
+          default-limit: 10 per minute
+          premium-user-limit: 100 per minute
+        
+        quiet-hours:
+          enabled: true
+          start-time: "22:00"
+          end-time: "08:00"
+          timezone: "Asia/Seoul"
+          
+        content-filtering:
+          enabled: true
+          blocked-words: [spam, inappropriate, violation]
+          
+        notification-cooldown:
+          enabled: true
+          duration: 5 # minutes
+          per-type:
+            post: 10 minutes
+            comment: 5 minutes
+            like: 1 minute
+
+# =============================================================================
+# 📊 성능 모니터링 설정
+# =============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,kafka,bindings
+  endpoint:
+    health:
+      kafka:
+        show-details: always
+        probes:
+          enabled: true
+          
+  metrics:
+    export:
+      kafka:
+        enabled: true
+      jvm:
+        enabled: true
+      system:
+        enabled: true
+
+# =============================================================================
+# 📝 로깅 설정
+# =============================================================================
+logging:
+  level:
+    com.web3.community: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+    org.springframework.cloud.stream: INFO
+    
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  
+  file:
+    name: logs/notification-service.log
+    max-size: 100MB
+    max-history: 30
+    
+  # =============================================================================
+  # 🐛 로거백 설정 (선택사항)
+  # =============================================================================
+  logback:
+    appender:
+      stdout:
+        encoder:
+          pattern: ${CONSOLE_LOG_PATTERN}
+          output:
+            charset: UTF-8
+            
+      file:
+        fileName: logs/notification-service.log
+        maxFileSize: 100MB
+        maxHistory: 30
+        encoder:
+          pattern: ${FILE_LOG_PATTERN}
+          output:
+            charset: UTF-8
+            
+      async:
+        name: asyncAppender
+        queueCapacity: 1000
+        discardingThreshold: 0
+        includeCallerData: true
+        appender-ref: file
+        
+# =============================================================================
+# 🔒 테스트 환경 설정
+# =============================================================================
+---
+spring:
+  profiles:
+    test:
+      kafka:
+        bootstrap-servers: localhost:9092
+        consumer:
+          group-id: test-group
+          auto-offset-reset: earliest
+          
+  web3:
+    notification:
+      email:
+        enabled: false
+      push:
+        enabled: false
