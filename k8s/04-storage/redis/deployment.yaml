@@ -1,0 +1,234 @@
+# =============================================================================
+# 🔴 Redis 데이터베이스 배포
+# =============================================================================
+# 📝 설명: 캐시/세션 관리를 위한 Redis 7.0 인메모리 데이터베이스 배포
+# 🎯 목적: 빠른 데이터 접근, 세션 관리, 캐싱, Pub/Sub 기능 제공
+# 🌟 실무 팁: 메모리 관리와 지속성 설정이 중요
+# ⚠️  주의: 운영 환경에서는 Cluster Mode + Sentinel 고려
+# 🔄 실행 순서: #4-3-3 (PVC, Service 생성 후 실행)
+# 📖 참고: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: redis-deployment          # 배포 이름
+  namespace: web3-community     # 소속 네임스페이스
+  
+  labels:
+    app: web3-community
+    component: database
+    database: redis
+    tier: data
+    environment: local
+    deployment-type: database
+  
+  annotations:
+    description: "Redis 7.0 deployment for caching and session management"
+    created-by: "developer"
+    deployment-version: "v1.0"
+
+spec:
+  replicas: 1                      # 로컬 개발용 1개 복제본
+  
+  selector:
+    matchLabels:
+      app: redis
+      component: database
+      tier: data
+  
+  template:
+    metadata:
+      labels:
+        app: redis
+        component: database
+        tier: data
+        environment: local
+        pod-template-hash: "auto-generated"
+      
+      annotations:
+        description: "Redis cache pod"
+        created-by: "developer"
+        restart-policy: "Always"
+    
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.0-alpine      # Redis 7.0 Alpine 이미지 (작은 크기)
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: redis
+          containerPort: 6379
+          protocol: TCP
+        
+        env:
+        # Redis 비밀번호 (Secret에서 가져오기)
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-secrets
+              key: redis-password
+        
+        # 메모리 설정 (ConfigMap에서 가져오기)
+        - name: REDIS_MAX_MEMORY
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: redis-max-memory
+        
+        # 메모리 정책 (ConfigMap에서 가져오기)
+        - name: REDIS_EVICTION_POLICY
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: redis-eviction-policy
+        
+        # 데이터베이스 번호
+        - name: REDIS_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: redis-database
+        
+        # =============================================================================
+        # 🏥 헬스체크
+        # =============================================================================
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 2
+          successThreshold: 1
+        
+        # =============================================================================
+        # 💾 리소스 관리
+        # =============================================================================
+        resources:
+          requests:
+            memory: "128Mi"           # Redis는 메모리 효율이 높음
+            cpu: "100m"
+          limits:
+            memory: "256Mi"           # 최대 메모리 제한
+            cpu: "200m"
+        
+        # =============================================================================
+        # 📁 볼륨 마운트
+        # =============================================================================
+        volumeMounts:
+        - name: redis-data-volume
+          mountPath: /data             # Redis 기본 데이터 경로
+          subPath: redis
+        
+        - name: redis-config-volume
+          mountPath: /usr/local/etc/redis/redis.conf
+          subPath: redis.conf
+          readOnly: true
+        
+        # =============================================================================
+        # 🔧 Redis 실행 명령어 (최적화 설정)
+        # =============================================================================
+        command:
+        - redis-server
+        
+        args:
+        - /usr/local/etc/redis/redis.conf
+        - --requirepass               # 비밀번호 인증
+        - $(REDIS_PASSWORD)
+        - --maxmemory                 # 최대 메모리 제한
+        - $(REDIS_MAX_MEMORY)
+        - --maxmemory-policy          # 메모리 정책
+        - $(REDIS_EVICTION_POLICY)
+        - --save                     # RDB 백업 설정
+        - "900 1"                     # 15분 동안 1개 이상 변경 시 백업
+        - "300 10"                    # 5분 동안 10개 이상 변경 시 백업
+        - "60 10000"                  # 1분 동안 10000개 이상 변경 시 백업
+        - --appendonly                # AOF 로깅 활성화
+        - "yes"
+        - --appendfsync               # AOF 동기화 방식
+        - "everysec"
+        - --protected-mode            # 보안 모드
+        - "no"
+      
+      # =============================================================================
+      # 📦 볼륨 정의
+      # =============================================================================
+      volumes:
+      - name: redis-data-volume
+        persistentVolumeClaim:
+          claimName: redis-pvc
+      
+      - name: redis-config-volume
+        configMap:
+          name: database-config
+          items:
+          - key: redis-init-script
+            path: redis.conf
+          optional: true
+
+# =============================================================================
+# 🌟 Redis 관리 명령어
+# =============================================================================
+# 
+# 배포 상태 확인:
+# kubectl get deployment redis-deployment -n web3-community
+# kubectl get pods -l app=redis -n web3-community
+#
+# Redis 접속:
+# kubectl exec -it deployment/redis-deployment -n web3-community -- redis-cli -a $REDIS_PASSWORD
+#
+# 기본 명령어 테스트:
+# > SET user:session:123 "session_data"
+# > GET user:session:123
+# > KEYS user:*
+# > DEL user:session:123
+# > INFO memory
+# > INFO stats
+#
+# 메모리 사용량 모니터링:
+# kubectl exec deployment/redis-deployment -n web3-community -- \
+#   redis-cli -a $REDIS_PASSWORD INFO memory
+#
+# 캐시 통계:
+# kubectl exec deployment/redis-deployment -n web3-community -- \
+#   redis-cli -a $REDIS_PASSWORD INFO stats
+#
+# 데이터베이스 정보:
+# kubectl exec deployment/redis-deployment -n web3-community -- \
+#   redis-cli -a $REDIS_PASSWORD INFO keyspace
+#
+# 백업 생성:
+# kubectl exec deployment/redis-deployment -n web3-community -- \
+#   redis-cli -a $REDIS_PASSWORD BGSAVE
+#
+# 백업 확인:
+# kubectl exec deployment/redis-deployment -n web3-community -- ls -la /data/dump.rdb
+#
+# 실무 팁:
+# - 운영 환경에서는 Redis Sentinel + Cluster 구성
+# - 메모리 사용량 모니터링 및 경고 설정
+# - 적절한 Eviction 정책으로 메모리 관리
+# - 정기적인 백업 및 복원 테스트
+# - Redis 버전 관리 및 업그레이드 전략
+# - 보안을 위해 네트워크 정책 적용
+# =============================================================================

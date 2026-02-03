@@ -1,0 +1,316 @@
+# =============================================================================
+# 🌍 Ingress 설정 (외부 접근)
+# =============================================================================
+# 📝 설명: 클러스터 외부에서 애플리케이션 접속을 위한 Ingress 설정
+# 🎯 목적: HTTPS termination, Load Balancing, URL routing
+# 🌟 실무 팁: SSL/TLS 설정, Rate Limiting, Security Headers 필수
+# ⚠️  주의: Ingress Controller가 사전에 설치되어 있어야 함
+# 🔄 실행 순서: #6-1 (모든 서비스 배포 후 실행)
+# 📖 참고: https://kubernetes.io/docs/concepts/services-networking/ingress/
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: web3-community-ingress   # Ingress 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: ingress
+    tier: networking
+    environment: local
+  
+  annotations:
+    description: "Main ingress for web3-community platform"
+    created-by: "developer"
+    
+    # =============================================================================
+    # 🛡️ NGINX Ingress Controller 설정
+    # =============================================================================
+    # Ingress Controller 종류
+    kubernetes.io/ingress.class: "nginx"
+    
+    # 리라이트 설정 (URL 정리)
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # SSL/TLS 설정 (로컬 개발에서는 비활성화)
+    # nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+    # 보안 헤더 설정
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self';"
+    
+    # CORS 설정
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    
+    # 리미트 설정 (DDoS 방지)
+    nginx.ingress.kubernetes.io/limit-connections: "100"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    
+    # 프록시 설정
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "4k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    
+    # 타임아웃 설정
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    
+    # WebSocket 지원
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+
+spec:
+  # =============================================================================
+  # 🔄 TLS 설정 (HTTPS)
+  # =============================================================================
+  # 로컬 개발에서는 TLS 비활성화 (운영 환경에서는 필수)
+  # tls:
+  # - hosts:
+  #   - web3-community.local
+  #   secretName: web3-community-tls-secret
+  
+  # =============================================================================
+  # 📡 라우팅 규칙
+  # =============================================================================
+  rules:
+  # =============================================================================
+  # 🎨 Frontend (Vue.js)
+  # =============================================================================
+  - host: web3-community.local   # 로컬 개발 도메인
+    http:
+      paths:
+      - path: /                   # 기본 경로는 프론트엔드
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service  # 프론트엔드 서비스 (아래에 정의)
+            port:
+              number: 80
+  
+  # =============================================================================
+  # 🚀 Backend API Gateway
+  # =============================================================================
+  - host: web3-community.local
+    http:
+      paths:
+      - path: /api(/|$)(.*)        # /api/* 경로는 백엔드 API
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway-service
+            port:
+              number: 8080
+  
+  # =============================================================================
+  # 🌐 추가 도메인 설정 (운용 환경용)
+  # =============================================================================
+  # - host: api.web3-community.local   # API 전용 도메인
+  #   http:
+  #     paths:
+  #     - path: /
+  #       pathType: Prefix
+  #       backend:
+  #         service:
+  #           name: api-gateway-service
+  #           port:
+  #             number: 8080
+
+---
+
+# =============================================================================
+# 🎨 Frontend 서비스 (Ingress 연동용)
+# =============================================================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: frontend-service          # 프론트엔드 서비스 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: frontend
+    tier: presentation
+    service-type: frontend
+    environment: local
+  
+  annotations:
+    description: "Frontend service for ingress routing"
+    created-by: "developer"
+
+spec:
+  type: ClusterIP                 # Ingress에서만 접근
+  
+  selector:
+    app: frontend
+    component: frontend
+    tier: presentation
+  
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+
+# =============================================================================
+# 🛡️ Network Policy (네트워크 보안)
+# =============================================================================
+# 📝 설명: 클러스터 내부 네트워크 접근 제어 정책
+# 🎯 목적: 불필요한 네트워크 접근 차단, 보안 강화
+# 🌟 실무 팁: 최소 권한 원칙으로 필요한 통신만 허용
+# ⚠️  주의: NetworkPolicy가 적용되려면 CNI 플러그인 필요
+# 🔄 실행 순서: #6-2 (Ingress 설정 후 실행)
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+
+metadata:
+  name: web3-community-network-policy
+  namespace: web3-community     # 네임스페이지 단위 정책
+  
+  labels:
+    app: web3-community
+    component: network-policy
+    tier: security
+    environment: local
+  
+  annotations:
+    description: "Network security policy for web3-community"
+    created-by: "developer"
+
+spec:
+  # =============================================================================
+  # 🎯 정책 적용 대상 (Pod Selector)
+  # =============================================================================
+  podSelector: {}                 # 네임스페이지 내 모든 Pod에 적용
+  
+  # =============================================================================
+  # 📤 Egress 규칙 (외부 나가는 트래픽)
+  # =============================================================================
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  egress:
+  # DNS 조회 허용
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Kubernetes API 서버 접속 허용
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # =============================================================================
+  # 📥 Ingress 규칙 (들어오는 트래픽)
+  # =============================================================================
+  ingress:
+  # Ingress Controller에서의 접속 허용
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8082
+    - protocol: TCP
+      port: 8083
+    - protocol: TCP
+      port: 8084
+    - protocol: TCP
+      port: 8085
+  
+  # 동일 네임스페이지 내부 통신 허용
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8082
+    - protocol: TCP
+      port: 8083
+    - protocol: TCP
+      port: 8084
+    - protocol: TCP
+      port: 8085
+    - protocol: TCP
+      port: 3306
+    - protocol: TCP
+      port: 27017
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 2181
+
+# =============================================================================
+# 🌟 Ingress 관리 명령어
+# =============================================================================
+# 
+# Ingress 상태 확인:
+# kubectl get ingress web3-community-ingress -n web3-community
+# kubectl describe ingress web3-community-ingress -n web3-community
+#
+# Ingress IP/Port 확인:
+# kubectl get ingress web3-community-ingress -n web3-community -o wide
+#
+# 로컬 DNS 설정 (/etc/hosts):
+# echo "127.0.0.1 web3-community.local" | sudo tee -a /etc/hosts
+#
+# 접속 테스트:
+# curl -I http://web3-community.local
+# curl -I http://web3-community.local/api/health
+#
+# Ingress Controller 로그 확인:
+# kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
+#
+# NetworkPolicy 상태 확인:
+# kubectl get networkpolicy -n web3-community
+# kubectl describe networkpolicy web3-community-network-policy -n web3-community
+#
+# SSL/TLS 인증서 상태:
+# kubectl get certificates -n web3-community
+# kubectl describe certificate web3-community-tls-secret -n web3-community
+#
+# 실무 팁:
+# - 운영 환경에서는 무조건 HTTPS 적용
+# - Rate Limiting 설정으로 DDoS 방어
+# - Web Application Firewall (WAF) 적용
+# - CDN 연동으로 전 세계 성능 최적화
+# - 모니터링: Ingress 접속 로그 및 메트릭 수집
+# =============================================================================

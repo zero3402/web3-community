@@ -1,0 +1,233 @@
+# =============================================================================
+# 📡 Kafka & Zookeeper 서비스 정의
+# =============================================================================
+# 📝 설명: Kafka 메시징 시스템과 Zookeeper 접속을 위한 네트워크 서비스
+# 🎯 목적: 메시징 큐 접속 엔드포인트 제공, 클러스터 통신 지원
+# 🌟 실무 팁: Zookeeper는 내부 통신만, Kafka는 내부/외부 통신 분리
+# 🔄 실행 순서: #4-4-3 (PVC 생성 후 실행)
+# 📖 참고: https://kubernetes.io/docs/concepts/services-networking/service/
+# =============================================================================
+
+# =============================================================================
+# 📡 Kafka 서비스 정의
+# =============================================================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: kafka-service             # Kafka 서비스 이름
+  namespace: web3-community     # 소속 네임스페이스
+  
+  labels:
+    app: web3-community
+    component: database
+    database: kafka
+    tier: data
+    service-type: messaging
+    environment: local
+  
+  annotations:
+    description: "Kafka messaging service endpoint"
+    created-by: "developer"
+
+spec:
+  type: ClusterIP                 # 클러스터 내부 접속
+  
+  selector:
+    app: kafka
+    component: database
+    tier: data
+  
+  ports:
+    - name: kafka-broker          # 브로커 포트
+      protocol: TCP
+      port: 9092
+      targetPort: 9092
+
+---
+
+# =============================================================================
+# 🦁 Zookeeper 서비스 정의
+# =============================================================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: zookeeper-service         # Zookeeper 서비스 이름
+  namespace: web3-community     # 소속 네임스페이스
+  
+  labels:
+    app: web3-community
+    component: database
+    database: zookeeper
+    tier: data
+    service-type: coordination
+    environment: local
+  
+  annotations:
+    description: "Zookeeper coordination service"
+    created-by: "developer"
+
+spec:
+  type: ClusterIP                 # 클러스터 내부 접속
+  
+  selector:
+    app: zookeeper
+    component: database
+    tier: data
+  
+  ports:
+    - name: zookeeper-client       # 클라이언트 접속 포트
+      protocol: TCP
+      port: 2181
+      targetPort: 2181
+    
+    - name: zookeeper-server       # 서버 간 통신 포트
+      protocol: TCP
+      port: 2888
+      targetPort: 2888
+    
+    - name: zookeeper-election     # 리더 선거 포트
+      protocol: TCP
+      port: 3888
+      targetPort: 3888
+
+---
+
+# =============================================================================
+# 🌐 Kafka Headless Service (클러스터링용)
+# =============================================================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: kafka-headless           # Kafka Headless Service
+  namespace: web3-community     # 소속 네임스페이스
+  
+  labels:
+    app: web3-community
+    component: database
+    database: kafka
+    tier: data
+    service-type: headless
+    environment: local
+  
+  annotations:
+    description: "Headless service for Kafka cluster"
+    created-by: "developer"
+
+spec:
+  clusterIP: None                 # Headless Service
+  
+  selector:
+    app: kafka
+    component: database
+    tier: data
+  
+  ports:
+    - name: kafka-broker
+      protocol: TCP
+      port: 9092
+      targetPort: 9092
+
+---
+
+# =============================================================================
+# 🦁 Zookeeper Headless Service (클러스터링용)
+# =============================================================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: zookeeper-headless       # Zookeeper Headless Service
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: database
+    database: zookeeper
+    tier: data
+    service-type: headless
+    environment: local
+  
+  annotations:
+    description: "Headless service for Zookeeper cluster"
+    created-by: "developer"
+
+spec:
+  clusterIP: None                 # Headless Service
+  
+  selector:
+    app: zookeeper
+    component: database
+    tier: data
+  
+  ports:
+    - name: zookeeper-client
+      protocol: TCP
+      port: 2181
+      targetPort: 2181
+    
+    - name: zookeeper-server
+      protocol: TCP
+      port: 2888
+      targetPort: 2888
+    
+    - name: zookeeper-election
+      protocol: TCP
+      port: 3888
+      targetPort: 3888
+
+# =============================================================================
+# 🌟 서비스 접속 방법
+# =============================================================================
+# 
+# Kafka 접속:
+# - Bootstrap: kafka-service.web3-community.svc.cluster.local:9092
+# - 간단히: kafka-service:9092
+# - Headless: kafka-0.kafka-headless.web3-community.svc.cluster.local:9092
+#
+# Zookeeper 접속:
+# - Client: zookeeper-service.web3-community.svc.cluster.local:2181
+# - 간단히: zookeeper-service:2181
+#
+# Spring Boot 설정 예시:
+# spring:
+#   kafka:
+#     bootstrap-servers: kafka-service:9092
+#     consumer:
+#       group-id: web3-community
+#       auto-offset-reset: earliest
+#     producer:
+#       acks: all
+#       retries: 3
+#
+# Kafka 클라이언트 테스트:
+# kubectl run kafka-client --image=confluentinc/cp-kafka:latest --rm -it --restart=Never \
+#   -- kafka-topics --bootstrap-server kafka-service:9092 --list
+#
+# Kafka 토픽 생성:
+# kubectl exec deployment/kafka-deployment -n web3-community -- \
+#   kafka-topics --bootstrap-server localhost:9092 --create --topic test-topic --partitions 3 --replication-factor 1
+#
+# 메시지 전송:
+# kubectl exec deployment/kafka-deployment -n web3-community -- \
+#   kafka-console-producer --bootstrap-server localhost:9092 --topic test-topic
+#
+# 메시지 수신:
+# kubectl exec deployment/kafka-deployment -n web3-community -- \
+#   kafka-console-consumer --bootstrap-server localhost:9092 --topic test-topic --from-beginning
+#
+# Zookeeper 상태 확인:
+# kubectl exec deployment/zookeeper-deployment -n web3-community -- \
+#   zookeeper-shell zookeeper-service:2181
+# > ls /
+# > get /brokers/ids
+#
+# 실무 팁:
+# - Kafka는 높은 처리량을 위해 Headless Service 필요
+# - Zookeeper는 홀수 개의 노드로 구성 (3, 5, 7...)
+# - 운영 환경에서는 각 서비스별로 별도 네임스페이스 분리
+# - 네트워크 정책으로 보안 강화
+# - 모니터링: JMX 메트릭 수집
+# =============================================================================

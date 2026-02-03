@@ -1,0 +1,594 @@
+# =============================================================================
+# 📝 Post Service, Comment Service, Auth Service, Notification Service 배포
+# =============================================================================
+# 📝 설명: 나머지 마이크로서비스들의 배포 설정 (파일 하나로 통합)
+# 🎯 목적: 게시글, 댓글, 인증, 알림 기능 제공
+# 🌟 실무 팁: 각 서비스의 특성에 맞는 설정과 리소스 할당
+# 🔄 실행 순서: #5-3 (User Service 실행 후 실행)
+# 📖 참고: https://spring.io/projects/spring-boot
+# =============================================================================
+
+# =============================================================================
+# 📝 Post Service 배포 (게시글 관리)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: post-service-deployment   # 배포 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: post-service
+    tier: backend
+    environment: local
+    deployment-type: microservice
+
+spec:
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: post-service
+      component: post-service
+      tier: backend
+  
+  template:
+    metadata:
+      labels:
+        app: post-service
+        component: post-service
+        tier: backend
+        environment: local
+      
+      annotations:
+        description: "Post Service pod"
+        created-by: "developer"
+    
+    spec:
+      containers:
+      - name: post-service
+        image: web3-community/post-service:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: http
+          containerPort: 8082
+          protocol: TCP
+        
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: spring.profiles.active
+        
+        # MongoDB 연결 정보
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb://mongouser:mongopass@mongodb-service:27017/web3_posts"
+        
+        - name: SPRING_DATA_MONGODB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: mongodb-database.name
+        
+        # =============================================================================
+        # 🏥 헬스체크
+        # =============================================================================
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8082
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 2
+          successThreshold: 1
+        
+        # =============================================================================
+        # 💾 리소스 관리
+        # =============================================================================
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: post-service-service      # 서비스 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: post-service
+    tier: backend
+    service-type: microservice
+
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: post-service
+    component: post-service
+    tier: backend
+  
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8082
+      targetPort: 8082
+
+---
+
+# =============================================================================
+# 💬 Comment Service 배포 (댓글 관리)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: comment-service-deployment
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: comment-service
+    tier: backend
+    environment: local
+    deployment-type: microservice
+
+spec:
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: comment-service
+      component: comment-service
+      tier: backend
+  
+  template:
+    metadata:
+      labels:
+        app: comment-service
+        component: comment-service
+        tier: backend
+        environment: local
+      
+      annotations:
+        description: "Comment Service pod"
+        created-by: "developer"
+    
+    spec:
+      containers:
+      - name: comment-service
+        image: web3-community/comment-service:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: http
+          containerPort: 8083
+          protocol: TCP
+        
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: spring.profiles.active
+        
+        # MongoDB 연결 정보
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb://mongouser:mongopass@mongodb-service:27017/web3_posts"
+        
+        - name: SPRING_DATA_MONGODB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: mongodb-database.name
+        
+        # =============================================================================
+        # 🏥 헬스체크
+        # =============================================================================
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8083
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 2
+          successThreshold: 1
+        
+        # =============================================================================
+        # 💾 리소스 관리
+        # =============================================================================
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: comment-service-service   # 서비스 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: comment-service
+    tier: backend
+    service-type: microservice
+
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: comment-service
+    component: comment-service
+    tier: backend
+  
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8083
+      targetPort: 8083
+
+---
+
+# =============================================================================
+# 🔐 Auth Service 배포 (인증/인가)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: auth-service-deployment
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: auth-service
+    tier: backend
+    environment: local
+    deployment-type: microservice
+
+spec:
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: auth-service
+      component: auth-service
+      tier: backend
+  
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        component: auth-service
+        tier: backend
+        environment: local
+      
+      annotations:
+        description: "Auth Service pod"
+        created-by: "developer"
+    
+    spec:
+      containers:
+      - name: auth-service
+        image: web3-community/auth-service:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: http
+          containerPort: 8084
+          protocol: TCP
+        
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: spring.profiles.active
+        
+        # Redis 연결 정보 (세션 관리)
+        - name: SPRING_REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: redis.host
+        
+        - name: SPRING_REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: redis.port
+        
+        - name: SPRING_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-secrets
+              key: redis-password
+        
+        # JWT 설정
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secrets
+              key: jwt-access-secret
+        
+        - name: JWT_EXPIRATION
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secrets
+              key: jwt-access-expiration
+        
+        # =============================================================================
+        # 🏥 헬스체크
+        # =============================================================================
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8084
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8084
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 2
+          successThreshold: 1
+        
+        # =============================================================================
+        # 💾 리소스 관리
+        # =============================================================================
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "150m"
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: auth-service-service      # 서비스 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: auth-service
+    tier: backend
+    service-type: microservice
+
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: auth-service
+    component: auth-service
+    tier: backend
+  
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8084
+      targetPort: 8084
+
+---
+
+# =============================================================================
+# 🔔 Notification Service 배포 (알림)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: notification-service-deployment
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: notification-service
+    tier: backend
+    environment: local
+    deployment-type: microservice
+
+spec:
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: notification-service
+      component: notification-service
+      tier: backend
+  
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        component: notification-service
+        tier: backend
+        environment: local
+      
+      annotations:
+        description: "Notification Service pod"
+        created-by: "developer"
+    
+    spec:
+      containers:
+      - name: notification-service
+        image: web3-community/notification-service:latest
+        imagePullPolicy: IfNotPresent
+        
+        ports:
+        - name: http
+          containerPort: 8085
+          protocol: TCP
+        
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: spring.profiles.active
+        
+        # Kafka 연결 정보
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: kafka.bootstrap.servers
+        
+        - name: KAFKA_TOPICS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: notification.service.kafka.topics
+        
+        - name: KAFKA_CONSUMER_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: notification.service.consumer.group.id
+        
+        # =============================================================================
+        # 🏥 헬스체크
+        # =============================================================================
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8085
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8085
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 2
+          successThreshold: 1
+        
+        # =============================================================================
+        # 💾 리소스 관리
+        # =============================================================================
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: notification-service-service  # 서비스 이름
+  namespace: web3-community     # 소속 네임스페이지
+  
+  labels:
+    app: web3-community
+    component: notification-service
+    tier: backend
+    service-type: microservice
+
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: notification-service
+    component: notification-service
+    tier: backend
+  
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8085
+      targetPort: 8085
+
+# =============================================================================
+# 🌟 마이크로서비스 관리 명령어
+# =============================================================================
+# 
+# 전체 배포 상태 확인:
+# kubectl get deployments -n web3-community -l deployment-type=microservice
+# kubectl get pods -n web3-community -l deployment-type=microservice
+#
+# 서비스 목록 확인:
+# kubectl get svc -n web3-community -l service-type=microservice
+#
+# 각 서비스 헬스체크:
+# kubectl exec deployment/post-service-deployment -n web3-community -- \
+#   curl -X GET http://localhost:8082/actuator/health
+#
+# Kafka 토픽 생성 (Notification Service용):
+# kubectl exec deployment/kafka-deployment -n web3-community -- \
+#   kafka-topics --bootstrap-server localhost:9092 \
+#   --create --topic notifications --partitions 3 --replication-factor 1
+#
+# MongoDB 컬렉션 확인:
+# kubectl exec deployment/mongodb-deployment -n web3-community -- \
+#   mongosh --eval "use web3_posts; show collections"
+#
+# 실무 팁:
+# - 각 서비스별로 적절한 리소스 할당
+# - 서비스 간 통신은 Service Discovery 사용
+# - Circuit Breaker로 서비스 장애 격리
+# - 분산 추적을 위한 Correlation ID 전파
+# - 각 서비스별 독립적인 모니터링 설정
+# =============================================================================

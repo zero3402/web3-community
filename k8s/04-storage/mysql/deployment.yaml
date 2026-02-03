@@ -1,0 +1,275 @@
+# =============================================================================
+# 🐬 MySQL 데이터베이스 배포
+# =============================================================================
+# 📝 설명: 사용자 관리를 위한 MySQL 8.0 관계형 데이터베이스 배포
+# 🎯 목적: 영구적 데이터 저장, ACID 트랜잭션 지원, 유저 정보 관리
+# 🌟 실무 팁: 로컬 개발용 Deployment (운영은 StatefulSet 추천)
+# ⚠️  주의: 운영 환경에서는 StatefulSet + Backup 전략 사용 권장
+# 🔄 실행 순서: #4-1-3 (PVC, Service 생성 후 실행)
+# 📖 참고: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+# =============================================================================
+
+apiVersion: apps/v1               # Kubernetes API 버전
+kind: Deployment                   # 배포 관리 객체
+
+metadata:
+  name: mysql-deployment           # 배포 이름 (네임스페이스 내 고유)
+  namespace: web3-community       # 소속 네임스페이스
+  
+  labels:
+    app: web3-community
+    component: database
+    database: mysql
+    tier: data
+    environment: local
+    deployment-type: database
+  
+  annotations:
+    description: "MySQL 8.0 database deployment for user management"
+    created-by: "developer"
+    deployment-version: "v1.0"
+    # 롤링 업데이트 전략 어노테이션
+    kubernetes.io/rollout-version: "v1.0"
+
+spec:
+  # =============================================================================
+  # 📊 복제본 설정
+  # =============================================================================
+  replicas: 1                      # 로컬 개발 환경이므로 1개 복제본
+  # 운영 환경: 고가용성을 위해 3개 이상 권장 (주의: 데이터 동기화 필요)
+  
+  # =============================================================================
+  # 🎯 셀렉터: 이 배포가 관리할 Pod 선택 기준
+  # =============================================================================
+  selector:
+    matchLabels:
+      app: mysql                   # 반드시 template.metadata.labels와 일치해야 함
+      component: database
+      tier: data
+  
+  # =============================================================================
+  # 🏗️ Pod 템플릿: 생성될 Pod의 상세 설정
+  # =============================================================================
+  template:
+    metadata:
+      labels:
+        app: mysql
+        component: database
+        tier: data
+        environment: local
+        pod-template-hash: "auto-generated"  # Deployment가 자동 생성
+      
+      annotations:
+        description: "MySQL database pod"
+        created-by: "developer"
+        # 재시작 정책
+        restart-policy: "Always"
+    
+    spec:
+      # =============================================================================
+      # 🏥 컨테이너 설정
+      # =============================================================================
+      containers:
+      - name: mysql                 # 컨테이너 이름
+        image: mysql:8.0            # MySQL 8.0 버전 이미지
+        imagePullPolicy: IfNotPresent # 로컬에 없을 때만 이미지 다운로드
+        
+        # =============================================================================
+        # 📡 포트 설정
+        # =============================================================================
+        ports:
+        - name: mysql
+          containerPort: 3306       # MySQL 기본 포트
+          protocol: TCP
+        
+        # =============================================================================
+        # 🔧 환경 변수 설정
+        # =============================================================================
+        env:
+        # MySQL Root 비밀번호 (Secret에서 가져오기)
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-secrets
+              key: mysql-root-password
+        
+        # 데이터베이스 이름 (ConfigMap에서 가져오기)
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: mysql-database-name
+        
+        # 일반 사용자 계정
+        - name: MYSQL_USER
+          value: "web3user"
+        
+        # 일반 사용자 비밀번호 (Secret에서 가져오기)
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-secrets
+              key: mysql-password
+        
+        # 문자셋 설정 (ConfigMap에서 가져오기)
+        - name: MYSQL_CHARSET
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: mysql-charset
+        
+        # 정렬 규칙 (ConfigMap에서 가져오기)
+        - name: MYSQL_COLLATION
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: mysql-collation
+        
+        # =============================================================================
+        # 🏥 헬스체크: 컨테이너 상태 확인 (매우 중요!)
+        # =============================================================================
+        # Readiness Probe: 트래픽 받을 준비되었는지 확인
+        readinessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 30    # 컨테이너 시작 후 30초 대기
+          periodSeconds: 10          # 10초마다 체크
+          timeoutSeconds: 5           # 5초 타임아웃
+          failureThreshold: 3          # 3번 연속 실패시 비준비 상태
+          successThreshold: 1          # 1번 성공시 준비 상태
+        
+        # Liveness Probe: 컨테이너가 살아있는지 확인 (자동 재시작)
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 60    # readiness보다 길게 설정
+          periodSeconds: 30           # 30초마다 체크
+          timeoutSeconds: 10          # 10초 타임아웃
+          failureThreshold: 2          # 2번 연속 실패시 컨테이너 재시작
+          successThreshold: 1
+        
+        # =============================================================================
+        # 💾 리소스 관리: 시스템 리소스 사용량 제한 (실무 필수!)
+        # =============================================================================
+        resources:
+          # 최소 보장 리소스 (Requests)
+          requests:
+            memory: "512Mi"           # 최소 512MB 메모리 보장
+            cpu: "250m"               # 최소 0.25 CPU 코어 보장
+          
+          # 최대 사용 리소스 (Limits)
+          limits:
+            memory: "1Gi"             # 최대 1GB 메모리 사용
+            cpu: "500m"               # 최대 0.5 CPU 코어 사용
+        
+        # =============================================================================
+        # 📁 볼륨 마운트: 데이터 영속성 보장
+        # =============================================================================
+        volumeMounts:
+        # MySQL 데이터 저장용 볼륨
+        - name: mysql-data-volume
+          mountPath: /var/lib/mysql    # MySQL 데이터 저장 경로
+          subPath: mysql               # PVC 내부 서브경오로 충돌 방지
+        
+        # MySQL 설정 파일용 볼륨 (선택사항)
+        - name: mysql-config-volume
+          mountPath: /etc/mysql/conf.d/custom.cnf
+          subPath: custom.cnf
+          readOnly: true               # 읽기 전용 마운트
+      
+      # =============================================================================
+      # 📦 볼륨 정의
+      # =============================================================================
+      volumes:
+      # MySQL 데이터용 PVC
+      - name: mysql-data-volume
+        persistentVolumeClaim:
+          claimName: mysql-pvc        # 위에서 생성한 PVC 이름
+      
+      # MySQL 설정용 ConfigMap (선택사항)
+      - name: mysql-config-volume
+        configMap:
+          name: mysql-config          # MySQL 설정 ConfigMap (별도로 정의)
+          optional: true               # ConfigMap이 없어도 파드 생성 허용
+      
+      # =============================================================================
+      # 🌟 실무 팁: 고급 설정 (필요시 주석 해제)
+      # =============================================================================
+      # # Pod Anti-Affinity: 같은 노드에 여러 데이터베이스가 배치되지 않도록
+      # affinity:
+      #   podAntiAffinity:
+      #     preferredDuringSchedulingIgnoredDuringExecution:
+      #     - weight: 100
+      #       podAffinityTerm:
+      #         labelSelector:
+      #           matchLabels:
+      #             component: database
+      #         topologyKey: kubernetes.io/hostname
+      
+      # # 노드 셀렉터: 특정 노드에만 배포 (SSD 노드 등)
+      # nodeSelector:
+      #   storage-type: ssd
+      #   node-type: database
+      
+      # # 톨러레이션: 특정 조건에서도 배포 허용
+      # tolerations:
+      # - key: "database"
+      #   operator: "Equal"
+      #   value: "true"
+      #   effect: "NoSchedule"
+
+# =============================================================================
+# 🔄 롤링 업데이트 전략
+# =============================================================================
+# spec.strategy.type: RollingUpdate (기본값)
+# spec.strategy.rollingUpdate:
+#   maxUnavailable: 25%  # 업데이트 중 최대 25%까지 중단 허용
+#   maxSurge: 25%        # 최대 25%까지 추가 생성 허용
+#
+# =============================================================================
+# 🌟 실무 운영 가이드
+# =============================================================================
+# 
+# MySQL 배포 확인:
+# kubectl get deployment mysql-deployment -n web3-community
+# kubectl get pods -l app=mysql -n web3-community
+# kubectl describe deployment mysql-deployment -n web3-community
+#
+# 로그 확인:
+# kubectl logs deployment/mysql-deployment -n web3-community -f
+#
+# 스케일링:
+# kubectl scale deployment mysql-deployment --replicas=3 -n web3-community
+#
+# 롤아웃 상태:
+# kubectl rollout status deployment/mysql-deployment -n web3-community
+# kubectl rollout history deployment/mysql-deployment -n web3-community
+#
+# 롤백:
+# kubectl rollout undo deployment/mysql-deployment -n web3-community
+#
+# MySQL 접속 테스트:
+# kubectl exec -it deployment/mysql-deployment -n web3-community -- mysql -u root -p
+#
+# 백업 (로컬 개발용):
+# kubectl exec deployment/mysql-deployment -n web3-community -- \
+#   mysqldump -u root -p$MYSQL_ROOT_PASSWORD web3_community > backup.sql
+#
+# 복원:
+# kubectl exec -i deployment/mysql-deployment -n web3-community -- \
+#   mysql -u root -p$MYSQL_ROOT_PASSWORD web3_community < backup.sql
+#
+# 실무 팁:
+# - 운영 환경에서는 StatefulSet + Backup 전략 사용
+# - 정기적인 백업 및 복원 테스트 필수
+# - 데이터베이스 모니터링 및 성능 튜닝
+# - 네트워크 정책으로 접근 제어 강화
+# =============================================================================

@@ -1,0 +1,282 @@
+# =============================================================================
+# ⚙️ 데이터베이스 설정 맵
+# =============================================================================
+# 📝 설명: MySQL, MongoDB, Redis, Kafka 데이터베이스들의 연결 및 설정 관리
+# 🎯 목적: 데이터베이스 설정 중앙 관리, 환경별 설정 용이성
+# 🔒 보안: 민감 정보(비밀번호 등)는 Secrets에 별도 저장
+# 🌟 실무 팁: 데이터베이스별 ConfigMap 분리로 독립적 관리
+# 🔄 실행 순서: #2-3 (네임스페이스 생성 후 실행)
+# 📖 참고: https://kubernetes.io/docs/concepts/configuration/configmap/
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: database-config
+  namespace: web3-community
+  
+  labels:
+    app: web3-community
+    component: database
+    config-type: database
+    tier: data
+  
+  annotations:
+    description: "Database configuration for all services"
+    config-version: "v1.0"
+
+data:
+  # =============================================================================
+  # 🐬 MySQL 설정 (사용자 관리용)
+  # =============================================================================
+  mysql-database-name: "web3_community"
+  mysql-charset: "utf8mb4"
+  mysql-collation: "utf8mb4_unicode_ci"
+  mysql-storage-engine: "InnoDB"
+  
+  # MySQL 최적화 설정
+  mysql-innodb-buffer-pool-size: "512M"
+  mysql-max-connections: "200"
+  mysql-query-cache-size: "64M"
+  mysql-query-cache-type: "1"
+  mysql-slow-query-log: "1"
+  mysql-long-query-time: "2"
+  
+  # MySQL 초기화 스크립트
+  mysql-init-script: |
+    -- 데이터베이스 생성
+    CREATE DATABASE IF NOT EXISTS web3_community 
+    CHARACTER SET utf8mb4 
+    COLLATE utf8mb4_unicode_ci;
+    
+    -- 사용자 생성
+    CREATE USER IF NOT EXISTS 'web3user'@'%' IDENTIFIED BY 'userpassword';
+    GRANT ALL PRIVILEGES ON web3_community.* TO 'web3user'@'%';
+    FLUSH PRIVILEGES;
+    
+    -- 테이블 생성 (기본 구조)
+    USE web3_community;
+    
+    CREATE TABLE IF NOT EXISTS users (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        nickname VARCHAR(50) NOT NULL,
+        profile_image VARCHAR(255),
+        status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_username (username),
+        INDEX idx_email (email),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    
+    CREATE TABLE IF NOT EXISTS user_roles (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        role ENUM('USER', 'ADMIN', 'MODERATOR') DEFAULT 'USER',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_user_role (user_id, role)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+  # =============================================================================
+  # 🍃 MongoDB 설정 (게시글/댓글용)
+  # =============================================================================
+  mongodb-database-name: "web3_posts"
+  mongodb-replica-set: "rs0"
+  mongodb-connection-timeout: "30000"
+  mongodb-socket-timeout: "30000"
+  mongodb-server-selection-timeout: "30000"
+  
+  # MongoDB 최적화 설정
+  mongodb-pool-size: "10"
+  mongodb-max-connection-per-host: "10"
+  mongodb-threads-allowed-to-block-for-connection-multiplier: "5"
+  
+  # MongoDB 초기화 스크립트
+  mongodb-init-script: |
+    // 데이터베이스 생성 및 사용자 설정
+    use web3_posts;
+    
+    // 사용자 생성
+    db.createUser({
+      user: "mongouser",
+      pwd: "mongopass",
+      roles: [
+        {
+          role: "readWrite",
+          db: "web3_posts"
+        }
+      ]
+    });
+    
+    // 컬렉션 및 인덱스 생성
+    // 게시글 컬렉션
+    db.createCollection("posts");
+    db.posts.createIndex({ "title": "text", "content": "text" });
+    db.posts.createIndex({ "authorId": 1 });
+    db.posts.createIndex({ "createdAt": -1 });
+    db.posts.createIndex({ "status": 1 });
+    db.posts.createIndex({ "tags": 1 });
+    
+    // 댓글 컬렉션
+    db.createCollection("comments");
+    db.comments.createIndex({ "postId": 1 });
+    db.comments.createIndex({ "authorId": 1 });
+    db.comments.createIndex({ "parentId": 1 });
+    db.comments.createIndex({ "createdAt": -1 });
+    
+    // 파일 업로드 컬렉션
+    db.createCollection("attachments");
+    db.attachments.createIndex({ "postId": 1 });
+    db.attachments.createIndex({ "uploadDate": -1 });
+    
+    print("MongoDB initialization completed successfully!");
+
+  # =============================================================================
+  # 🔴 Redis 설정 (세션/캐시용)
+  # =============================================================================
+  redis-max-memory: "256mb"
+  redis-eviction-policy: "allkeys-lru"
+  redis-save-interval: "900 1 300 10 60 10000"
+  redis-append-only: "yes"
+  redis-append-fsync: "everysec"
+  
+  # Redis 최적화 설정
+  redis-tcp-keepalive: "300"
+  redis-timeout: "0"
+  redis-tcp-backlog: "511"
+  redis-databases: "16"
+  
+  # Redis 초기화 스크립트
+  redis-init-script: |
+    # Redis 설정 파일
+    maxmemory ${redis-max-memory}
+    maxmemory-policy ${redis-eviction-policy}
+    save ${redis-save-interval}
+    appendonly ${redis-append-only}
+    appendfsync ${redis-append-fsync}
+    tcp-keepalive ${redis-tcp-keepalive}
+    timeout ${redis-timeout}
+    tcp-backlog ${redis-tcp-backlog}
+    databases ${redis-databases}
+
+  # =============================================================================
+  # 📡 Kafka 설정 (메시징용)
+  # =============================================================================
+  kafka-brokers: "kafka-service:9092"
+  kafka-zookeeper-connect: "zookeeper-service:2181"
+  kafka-topics: "notifications,events,user-activity,post-updates"
+  
+  # Kafka 토픽 설정
+  kafka-topic-notifications: "notifications"
+  kafka-topic-events: "events"
+  kafka-topic-user-activity: "user-activity"
+  kafka-topic-post-updates: "post-updates"
+  
+  # Kafka 최적화 설정
+  kafka-partitions-per-topic: "3"
+  kafka-replication-factor: "1"
+  kafka-retention-hours: "168"  # 7일
+  kafka-segment-bytes: "1073741824"  # 1GB
+  kafka-log-retention-check-interval-ms: "300000"
+  
+  # Kafka 토픽 생성 스크립트
+  kafka-topics-script: |
+    #!/bin/bash
+    
+    # 토픽 생성 스크립트
+    TOPICS=("notifications" "events" "user-activity" "post-updates")
+    PARTITIONS=3
+    REPLICATION_FACTOR=1
+    
+    for topic in "${TOPICS[@]}"; do
+      kafka-topics.sh --create \
+        --topic $topic \
+        --bootstrap-server kafka-service:9092 \
+        --partitions $PARTITIONS \
+        --replication-factor $REPLICATION_FACTOR \
+        --if-not-exists
+      echo "Topic '$topic' created successfully"
+    done
+    
+    # 토픽 목록 확인
+    kafka-topics.sh --list --bootstrap-server kafka-service:9092
+
+  # =============================================================================
+  # 🌐 공통 데이터베이스 연결 설정
+  # =============================================================================
+  # 연결 타임아웃 설정
+  connection-timeout: "30"
+  max-connections: "100"
+  connection-retry-attempts: "3"
+  connection-retry-delay: "1000"
+  
+  # 풀링 설정
+  pool-size-min: "5"
+  pool-size-max: "20"
+  pool-validation-timeout: "3000"
+  pool-idle-timeout: "600000"
+  
+  # Health Check 설정
+  health-check-interval: "30000"
+  health-check-timeout: "5000"
+  health-check-retries: "3"
+
+# =============================================================================
+# 🔍 설명 및 사용법
+# =============================================================================
+# 
+# 이 ConfigMap 사용 방법:
+# 1. 데이터베이스 Pod에 환경 변수로 주입:
+#    envFrom:
+#      - configMapRef:
+#          name: database-config
+#
+# 2. Init Container에서 초기화 스크립트 사용:
+#    initContainers:
+#      - name: init-db
+#        image: mysql:8.0
+#        command: ["/bin/bash", "-c"]
+#        args:
+#          - |
+#            mysql -h $MYSQL_HOST -u root -p$MYSQL_ROOT_PASSWORD -e "$(cat /etc/mysql/init/init.sql)"
+#        volumeMounts:
+#          - name: mysql-init-script
+#            mountPath: /etc/mysql/init/init.sql
+#            subPath: mysql-init-script
+#        envFrom:
+#          - configMapRef:
+#              name: database-config
+#
+# 3. Kubernetes Job으로 초기화 작업 실행:
+#    apiVersion: batch/v1
+#    kind: Job
+#    metadata:
+#      name: database-init
+#    spec:
+#      template:
+#        spec:
+#          containers:
+#          - name: init-mongodb
+#            image: mongo:6.0
+#            command: ["mongosh"]
+#            args: ["--eval", "$(cat /etc/mongodb/init.js)"]
+#            volumeMounts:
+#              - name: mongodb-init-script
+#                mountPath: /etc/mongodb/init.js
+#                subPath: mongodb-init-script
+#          volumes:
+#            - name: mongodb-init-script
+#              configMap:
+#                name: database-config
+#
+# 실무 팁:
+# - 데이터베이스 버전별로 다른 ConfigMap 사용
+# - 운영 환경에서는 성능 튜닝 값 조정 필요
+# - 백업 및 복구 스크립트도 ConfigMap에 포함 가능
+# - 모니터링 및 알림 설정도 함께 관리
+# =============================================================================

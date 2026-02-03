@@ -1,0 +1,89 @@
+# =============================================================================
+# 🔴 Redis 서비스 정의
+# =============================================================================
+# 📝 설명: Redis 인메모리 데이터베이스 접속을 위한 네트워크 서비스 정의
+# 🎯 목적: 빠른 캐시/세션 스토리지 접속 엔드포인트 제공
+# 🌟 실무 팁: Redis는 빈번한 접속이므로 안정적인 네트워크 설정 중요
+# 🔄 실행 순서: #4-3-2 (PVC 생성 후 실행)
+# 📖 참고: https://kubernetes.io/docs/concepts/services-networking/service/
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: redis-service             # 서비스 이름
+  namespace: web3-community     # 소속 네임스페이스
+  
+  labels:
+    app: web3-community
+    component: database
+    database: redis
+    tier: data
+    service-type: cache
+    environment: local
+  
+  annotations:
+    description: "Redis cache service endpoint"
+    created-by: "developer"
+    # Redis 특화 어노테이션
+    prometheus.io/scrape: "false"
+
+spec:
+  type: ClusterIP                 # 클러스터 내부 접속만 허용
+  
+  selector:
+    app: redis
+    component: database
+    tier: data
+  
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6379                 # Redis 기본 포트
+      targetPort: 6379
+
+# =============================================================================
+# 🌟 서비스 접속 방법
+# =============================================================================
+# 
+# 클러스터 내부에서 Redis 접속:
+# - Hostname: redis-service.web3-community.svc.cluster.local
+# - Port: 6379
+# - 간단히: redis-service (같은 네임스페이스)
+#
+# Spring Boot application.yml 설정 예시:
+# spring:
+#   redis:
+#     host: redis-service
+#     port: 6379
+#     password: ${REDIS_PASSWORD}
+#     database: 0
+#     timeout: 2000ms
+#     lettuce:
+#       pool:
+#         max-active: 8
+#         max-idle: 8
+#         min-idle: 0
+#
+# 접속 테스트:
+# kubectl run redis-client --image=redis:7.0 --rm -it --restart=Never \
+#   -- redis-cli -h redis-service -p 6379
+#
+# Redis 명령어 테스트:
+# kubectl exec -it deployment/redis-deployment -n web3-community -- redis-cli
+# > SET test-key "Hello Redis"
+# > GET test-key
+# > INFO memory
+# > INFO stats
+#
+# 모니터링:
+# kubectl exec deployment/redis-deployment -n web3-community -- redis-cli INFO
+#
+# 실무 팁:
+# - Redis는 빈번한 접속이므로 커넥션 풀 최적화
+# - 메모리 사용량 모니터링 중요 (Eviction 정책)
+# - 운영 환경에서는 Redis Cluster 고려
+# - 보안을 위해 비밀번호 인증 필수
+# - AOF/RDB 백업 전략 수립
+# =============================================================================
