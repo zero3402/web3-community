@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/db.changelog-4.0.xsd">
+
+    <!-- Notification Delivery Logs Table -->
+    <changeSet id="create-notification-delivery-tables" author="developer">
+        <createTable tableName="notification_delivery_logs">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="notification_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="channel" type="ENUM('IN_APP', 'EMAIL', 'PUSH', 'SMS', 'WEBHOOK')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="recipient_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="recipient_address" type="VARCHAR(255)"/>
+            <column name="delivery_status" type="ENUM('PENDING', 'SENT', 'DELIVERED', 'FAILED', 'BOUNCED', 'REJECTED', 'OPENED', 'CLICKED')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attempt_count" type="INT" defaultValue="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sent_at" type="TIMESTAMP"/>
+            <column name="delivered_at" type="TIMESTAMP"/>
+            <column name="failed_at" type="TIMESTAMP"/>
+            <column name="error_message" type="TEXT"/>
+            <column name="error_code" type="VARCHAR(50)"/>
+            <column name="external_id" type="VARCHAR(255)"/>
+            <column name="response_data" type="JSON"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <addForeignKeyConstraint
+            baseTableName="notification_delivery_logs"
+            baseColumnNames="notification_id"
+            referencedTableName="notifications"
+            referencedColumnNames="id"
+            constraintName="fk_notification_delivery_logs_notification_id"
+            onDelete="CASCADE"/>
+            
+        <addForeignKeyConstraint
+            baseTableName="notification_delivery_logs"
+            baseColumnNames="recipient_id"
+            referencedTableName="users"
+            referencedColumnNames="id"
+            constraintName="fk_notification_delivery_logs_recipient_id"
+            onDelete="CASCADE"/>
+            
+        <createIndex tableName="notification_delivery_logs" indexName="idx_notification_delivery_logs_notification_id">
+            <column name="notification_id"/>
+        </createIndex>
+        
+        <createIndex tableName="notification_delivery_logs" indexName="idx_notification_delivery_logs_recipient_id">
+            <column name="recipient_id"/>
+        </createIndex>
+        
+        <createIndex tableName="notification_delivery_logs" indexName="idx_notification_delivery_logs_channel">
+            <column name="channel"/>
+        </createIndex>
+        
+        <createIndex tableName="notification_delivery_logs" indexName="idx_notification_delivery_logs_delivery_status">
+            <column name="delivery_status"/>
+        </createIndex>
+        
+        <createIndex tableName="notification_delivery_logs" indexName="idx_notification_delivery_logs_created_at">
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,251 +1,118 @@
-# 🌐 Web3 Community Platform(현재 만드는 중입니다.)
+# Web3 Community - Docker Compose
 
-## 📋 프로젝트 개요
+## 🏗️ 전체 아키텍처
 
-MSA(Microservices Architecture) 기반의 Web3 커뮤니티 플랫폼입니다. 쿠버네티스 환경에서 실행되도록 설계되었습니다.
+이 Docker Compose는 Web3 Community 플랫폼의 완전한 인프라를 위한 모든 컴포넌트를 포함합니다.
 
-### 🏗️ 아키텍처 구성
+### 📦 **Infrastructure Services**
+- **MySQL 8.0** - 관계형 데이터베이스
+- **Redis 7-alpine** - 캐싱 및 세션 저장
+- **Nginx Alpine** - 리버스 프록시 및 로드 밸런싱
 
-**Frontend:**
-- Vue.js 3 (TypeScript 지원)
-- 반응형 디자인
-- 실시간 알림 기능
+### 🌐 **Platform Services**
+- **Eureka Server** - 서비스 디스커버리
+- **API Gateway** - Spring Cloud Gateway + 루트롤
+- **Nginx Load Balancer** - 외부 루드밸런싱
 
-**Backend (마이크로서비스):**
-- **API Gateway**: Spring Cloud Gateway (라우팅, 인증)
-- **User Service**: 사용자 관리 (MySQL)
-- **Post Service**: 게시글 관리 (MongoDB)
-- **Comment Service**: 댓글 관리 (MongoDB)
-- **Auth Service**: 인증/인가 (Redis 세션)
-- **Notification Service**: 알림 처리 (Kafka)
+### 🧑 **DDD Microservices**
+- **User Service** (Port 8081) - 사용자 관리
+- **Auth Service** (Port 8082) - 인증/인가
+- **Post Service** (Data Port 8083) - 컨텐츠 관리
+- **Comment Service** (Port 8084) - 댓글 시스템
+- **Notification Service** (Port 8085) - 알림 서비스
+- **Analytics Service** (Data Port 8086) - 분석 서비스
 
-**데이터베이스:**
-- MySQL: 사용자 정보, 시스템 설정
-- MongoDB: 게시글, 댓글 (문서 기반)
-- Redis: 세션, 캐시, 실시간 데이터
-- Kafka: 이벤트 기반 메시징
+### 🌐 **Frontend**
+- **React SPA** (Port 3000) - 웹 프론트앤드
 
-## ⚡ 5분 만에 시작하기
+## 🚀 **사용 방법**
 
-### 📋 사전 준비물
-
-**Windows 환경:**
-- Windows 10/11 (64bit)
-- Docker Desktop (설치 필요)
-- Git for Windows
-- 최소 8GB RAM, 20GB 여유 디스크
-
-### 🚀 빠른 시작
-
+### 모든 서비스 시작:
 ```bash
-# 1. 프로젝트 클론
-git clone <repository-url>
-cd web3-community
-
-# 2. 환경 설정 (초기 실행 한 번만)
-./scripts/setup.sh
-
-# 3. 전체 배포
-./scripts/deploy.sh
-
-# 4. 상태 확인
-./scripts/status.sh
-
-# 5. 접속 확인
-# 브라우저에서 http://localhost:30001 접속
+./start-all.sh
 ```
 
-## 🔍 기본 명령어
-
-### 📊 상태 확인
+### 모든 서비스 중지:
 ```bash
-# 전체 상태 확인
-./scripts/status.sh
-
-# 파드 상태 확인
-kubectl get pods -n web3-community
-
-# 서비스 목록 확인
-kubectl get svc -n web3-community
+./stop-all.sh
 ```
 
-### 📝 로그 확인
+### 특정 서비스만 시작:
 ```bash
-# 전체 로그
-./scripts/logs.sh
+# 인프라
+docker-compose up -d mysql redis eureka
 
+# 마이크로서비스
+docker-compose up -d user-service auth-service
+
+# 프론트엔드
+docker-compose up -d frontend
+
+# 부분 서비스 (커맨드)
+docker-compose up -d user-service post-service comment-service
+```
+
+### 로그 확인:
+```bash
 # 특정 서비스 로그
-./scripts/logs.sh api-gateway
-./scripts/logs.sh user-service
+docker-compose logs user-service
+docker-compose logs -f auth-service
+
+# 모든 서비스 로그
+docker-compose logs
+
+# 특정 서비스 실시간 로그
+docker-compose logs -f post-service --tail=100
 ```
 
-### 🔄 서비스 관리
+### 건강 상태 확인:
 ```bash
-# 특정 서비스 재시작
-./scripts/restart.sh api-gateway
+# 전체 상태
+docker-compose ps
 
-# 전체 재시작
-./scripts/restart.sh
-
-# 전체 삭제
-./scripts/delete.sh
+# 특정 서비스 건강 체크
+curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
 ```
 
-## 🏗️ 프로젝트 구조
+## 🔗 **네트워크 구성**
+- **web3-network**: 모든 서비스가 통신하는 내부 네트워크
+- **외부 노출 포트**: 80 (Nginx), 3000 (Frontend)
+- **내부 포트**: MySQL(3306), Redis(6379), Eureka(8761)
 
+## 📁 **데이터 지속성**
+- **mysql_data**: MySQL 데이터 영구 보존
+- **redis_data**: Redis 데이터 영구 보존
+- **logs/**: 각 서비스 로그 저장
+- **uploads/**: 파일 업로드 저장
+
+## 🔧 **환경 변수**
+- `EMAIL_USERNAME`: 이메일 발송용 사용자명
+- `EMAIL_PASSWORD`: 이메일 발송용 비밀번호
+- `FIREBASE_SERVER_KEY`: FCM 서버 키 (선택사항)
+
+## 🔗 **서비스 통신 흐름**
 ```
-web3-community/
-├── 📋 README.md                    # 프로젝트 설명서
-├── 🔧 .env                         # 환경 변수 설정
-├── 🐳 docker/                      # Docker 파일들
-│   ├── frontend/Dockerfile
-│   └── backend/
-│       ├── api-gateway/Dockerfile
-│       ├── user-service/Dockerfile
-│       ├── post-service/Dockerfile
-│       ├── comment-service/Dockerfile
-│       ├── auth-service/Dockerfile
-│       └── notification-service/Dockerfile
-├── ☸️ k8s/                        # 쿠버네티스 매니페스트
-│   ├── 🌐 01-namespace.yaml
-│   ├── ⚙️ 02-configmaps/
-│   ├── 🔒 03-secrets/
-│   ├── 💾 04-storage/
-│   ├── 🚀 05-applications/
-│   └── 🌍 06-networking/
-├── 🛠️ scripts/                    # 자동화 스크립트
-│   ├── setup.sh                  # 초기 환경 설정
-│   ├── deploy.sh                 # 전체 배포
-│   ├── delete.sh                 # 전체 삭제
-│   ├── restart.sh                # 서비스 재시작
-│   ├── logs.sh                   # 로그 확인
-│   ├── status.sh                 # 상태 확인
-│   └── debug.sh                  # 디버깅 도구
-├── 📚 docs/                       # 문서
-│   ├── getting-started.md        # 상세 시작 가이드
-│   ├── architecture.md            # 아키텍처 설명
-│   ├── troubleshooting.md        # 문제 해결
-│   └── k8s-basics.md             # 쿠버네티스 기초
-├── 🎨 frontend/                   # Vue.js 프론트엔드
-└── ⚙️ backend/                    # Spring Boot 백엔드
-    ├── api-gateway/
-    ├── user-service/
-    ├── post-service/
-    ├── comment-service/
-    ├── auth-service/
-    └── notification-service/
+[사용자] → [Nginx:80] → [Gateway:8080] → [User:8081]
+                ↓                   ↓                    ↓
+[사용자] → [Gateway:8080] → [Auth:8082]
+[사용자] → [Gateway:8080] → [Post:8083] → [Analytics:8086]
+[사용자] → [Gateway:8080] → [Comment:8084] → [Analytics:8086]
+[알림] → [Gateway:8080] → [Notification:8085]
 ```
 
-## 🌟 주요 기능
+## 📊 **모니터링**
+- 각 서비스 Actuator 엔드포인트 (/actuator/health)
+- 중앙화된 로깅 (logs/ 디렉토리)
+- 컨테이너 영구 건강 체크
+- 메트릭스 수집 (Prometheus 지원)
 
-### 🔐 인증/인가 시스템
-- JWT 토큰 기반 인증
-- Redis 세션 관리
-- 권한 기반 접근 제어 (RBAC)
-
-### 📝 게시판 기능
-- 실시간 게시글 작성/수정/삭제
-- 계층적 댓글 시스템
-- 검색 및 필터링
-
-### 🔔 알림 시스템
-- Kafka 기반 실시간 알림
-- 웹소켓 연동
-- 알림 설정 관리
-
-### 👥 사용자 관리
-- 회원가입/로그인/프로필 관리
-- 소셜 로그인 (OAuth2)
-- 사용자 권한 관리
-
-## 🔧 개발 환경 설정
-
-### 🐳 Docker 이미지 빌드
-```bash
-# 프론트엔드 빌드
-docker build -t web3-community/frontend:latest ./docker/frontend/
-
-# 백엔드 서비스들 빌드
-docker build -t web3-community/api-gateway:latest ./docker/backend/api-gateway/
-docker build -t web3-community/user-service:latest ./docker/backend/user-service/
-# ... 기타 서비스들
-```
-
-### 🔄 개발 사이클
-```bash
-# 코드 변경 후 자동 재배포
-docker build -t web3-community/user-service:dev ./docker/backend/user-service/
-kubectl rollout restart deployment/user-service -n web3-community
-```
-
-## 📊 모니터링
-
-### 🔍 기본 모니터링
-```bash
-# 리소스 사용량 확인
-kubectl top pods -n web3-community
-
-# 파드 상세 정보
-kubectl describe pod <pod-name> -n web3-community
-
-# 서비스 엔드포인트 확인
-kubectl get endpoints -n web3-community
-```
-
-### 📈 상세 모니터링 (선택사항)
-- Prometheus + Grafana (메트릭 수집)
-- ELK Stack (로그 분석)
-- Jaeger (분산 추적)
-
-## 🐛 문제 해결
-
-### 🚨 흔한 문제들
-1. **Pod가 계속 Pending 상태**: `kubectl describe pod`로 리소스 부족 확인
-2. **Connection refused**: 서비스 이름 및 네임스페이스 확인
-3. **Image pull error**: Docker 이미지 로컬 빌드 확인
-4. **Volume mount error**: PVC 상태 확인
-
-### 🔧 디버깅 도구
-```bash
-# 디버그 스크립트 실행
-./scripts/debug.sh
-
-# 포트 포워딩으로 로컬 접속
-kubectl port-forward svc/api-gateway 8080:8080 -n web3-community
-
-# 파드 내부 접속
-kubectl exec -it <pod-name> -n web3-community -- /bin/bash
-```
-
-## 📖 학습 자료
-
-- [📚 getting-started.md](./docs/getting-started.md) - 상세 시작 가이드
-- [🏗️ architecture.md](./docs/architecture.md) - 아키텍처 설명
-- [🔧 troubleshooting.md](./docs/troubleshooting.md) - 문제 해결
-- [☸️ k8s-basics.md](./docs/k8s-basics.md) - 쿠버네티스 기초
-
-## 🤝 기여하기
-
-1. Fork this repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 라이선스
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🎯 다음 단계
-
-1. **기본 기능 구현**: 게시판 CRUD, 댓글 기능
-2. **인증 시스템**: JWT, OAuth2 구현
-3. **실시간 기능**: 웹소켓, 알림 시스템
-4. **모니터링**: 로그, 메트릭, 분산 추적
-5. **CI/CD**: GitHub Actions 자동 배포
+## 🔒 **보안 고려사항**
+1. **프로덕션 환경에서는 실제 비밀번호를 환경 변수로 설정
+2. 데이터베이스는 영구 저장되지만, 개발 환경에서는 도커 데이터 손실 가능성 있음
+3. 포트 매핑을 실제 환경에 맞게 조정 필요
+4. HTTPS 설정이 필요한 경우 Nginx SSL 인증서 구성 필요
+5. 데이터베이스 백업 전략 전략 정책 필요
 
 ---
-
-**Happy Coding! 🚀**
-
-처음이시면 [📚 시작 가이드](./docs/getting-started.md)를 먼저 읽어보세요!
+**🎉 완전한 Web3 Community 플랫폼이 Docker 환경에서 실행 가능합니다!**
