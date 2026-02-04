@@ -1,0 +1,345 @@
+version: '3.8'
+
+services:
+  # 🗄️ Infrastructure Services
+  mysql:
+    image: mysql:8.0
+    container_name: web3-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: web3_community
+      MYSQL_USER: web3user
+      MYSQL_PASSWORD: web3password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./infrastructure/mysql/init:/docker-entrypoint-initdb.d
+      - ./infrastructure/mysql/conf:/etc/mysql/conf.d
+    networks:
+      - web3-network
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: web3-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 🌐 Service Discovery
+  eureka:
+    build: ./infrastructure/eureka-server
+    container_name: web3-eureka
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+      SPRING_APPLICATION_JSON: '{"eureka": {"instance": {"lease-renewal-interval-in-seconds": 5}, "server": {"enable-self-preservation": false}}}'
+    volumes:
+      - ./infrastructure/eureka-server/logs:/logs
+      - ./infrastructure/eureka-server/config:/config
+    depends_on:
+      - mysql
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 🚪 API Gateway
+  api-gateway:
+    build: ./infrastructure/api-gateway
+    container_name: web3-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_OPTS: "-Xms512m -Xmx1g"
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+    volumes:
+      - ./infrastructure/api-gateway/logs:/logs
+      - ./infrastructure/api-gateway/config:/config
+    depends_on:
+      - eureka
+      - mysql
+      - redis
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 📦 User Service (DDD)
+  user-service:
+    build: ./backend/user-service
+    container_name: web3-user-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+      JWT_EXPIRATION: 86400000
+      PASSWORD_ENCODER_STRENGTH: 12
+    volumes:
+      - ./backend/user-service/logs:/logs
+      - ./backend/user-service/uploads:/uploads
+    depends_on:
+      - eureka
+      - mysql
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 🔐 Auth Service (DDD)
+  auth-service:
+    build: ./backend/auth-service
+    container_name: web3-auth-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+      JWT_EXPIRATION: 86400000
+      JWT_REFRESH_EXPIRATION: 604800000
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+    volumes:
+      - ./backend/auth-service/logs:/logs
+    depends_on:
+      - eureka
+      - mysql
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 📝 Post Service (DDD)
+  post-service:
+    build: ./backend/post-service
+    container_name: web3-post-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+      FILE_UPLOAD_MAX_SIZE: 10MB
+      FILE_UPLOAD_ALLOWED_TYPES: image/jpeg,image/png,image/gif,video/mp4,application/pdf
+    volumes:
+      - ./backend/post-service/logs:/logs
+      - ./backend/post-service/uploads:/uploads
+    depends_on:
+      - eureka
+      - mysql
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 💬 Comment Service (DDD)
+  comment-service:
+    build: ./backend/comment-service
+    container_name: web3-comment-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+      COMMENT_MAX_NESTING_LEVEL: 5
+      COMMENT_MAX_CONTENT_LENGTH: 2000
+    volumes:
+      - ./backend/comment-service/logs:/logs
+      - ./backend/comment-service/uploads:/uploads
+    depends_on:
+      - eureka
+      - mysql
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 🔔 Notification Service (DDD)
+  notification-service:
+    build: ./backend/notification-service
+    container_name: web3-notification-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+      environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      EMAIL_FROM: noreply@web3community.com
+      WEBSOCKET_ENDPOINT: /ws/notifications
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FIREBASE_SERVER_KEY: ${FIREBASE_SERVER_KEY}
+    volumes:
+      - ./backend/notification-service/logs:/logs
+      - ./backend/notification-service/templates:/templates
+    depends_on:
+      - eureka
+      - mysql
+      - redis
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 📊 Analytics Service (DDD)
+  analytics-service:
+    build: ./backend/analytics-service
+    container_name: web3-analytics-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL: http://eureka:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: web3user
+      SPRING_DATASOURCE_PASSWORD: web3password
+      JWT_SECRET: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+      ANALYTICS_RETENTION_RAW_DAYS: 90
+      ANALYTICS_RETENTION_AGGREGATED_DAYS: 365
+      ANALYTICS_BATCH_SIZE: 1000
+    volumes:
+      - ./backend/analytics-service/logs:/logs
+      - ./backend/analytics-service/data:/data
+    depends_on:
+      - eureka
+      - mysql
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 🌐 Frontend
+  frontend:
+    build: ./frontend/web3-community
+    container_name: web3-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
+      REACT_APP_WS_URL: ws://localhost:8085/ws/notifications
+      REACT_APP_ENV: development
+    volumes:
+      - ./frontend/web3-community/node_modules:/app/node_modules
+      - ./frontend/web3-community/.next:/app/.next
+      - ./frontend/web3-community/public:/app/public
+    depends_on:
+      - api-gateway
+      - eureka
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+# 🌐 Load Balancer (Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: web3-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/nginx/logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  web3-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  # Postgres optional
+  postgres_data:

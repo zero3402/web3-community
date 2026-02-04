@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/db.changelog-4.0.xsd">
+
+    <!-- Notifications Table -->
+    <changeSet id="create-notifications-table" author="developer">
+        <createTable tableName="notifications">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="recipient_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="ENUM('POST_LIKE', 'POST_COMMENT', 'COMMENT_REPLY', 'COMMENT_LIKE', 'FOLLOW', 'MENTION', 'POST_PUBLISHED', 'COMMENT_PINNED', 'SYSTEM_ANNOUNCEMENT', 'ACCOUNT_VERIFICATION', 'PASSWORD_CHANGE', 'SECURITY_ALERT', 'CONTENT_APPROVED', 'CONTENT_REJECTED', 'ACHIEVEMENT_UNLOCKED', 'WEEKLY_DIGEST', 'TRENDING_POST', 'NEW_MESSAGE')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="entity_type" type="ENUM('POST', 'COMMENT', 'USER', 'SYSTEM', 'MESSAGE', 'ACHIEVEMENT')"/>
+            <column name="entity_id" type="BIGINT"/>
+            <column name="sender_id" type="BIGINT"/>
+            <column name="sender_name" type="VARCHAR(100)"/>
+            <column name="sender_avatar" type="VARCHAR(500)"/>
+            <column name="action_url" type="VARCHAR(500)"/>
+            <column name="action_text" type="VARCHAR(100)"/>
+            <column name="image_url" type="VARCHAR(500)"/>
+            <column name="metadata" type="JSON"/>
+            <column name="priority" type="ENUM('LOW', 'NORMAL', 'HIGH', 'URGENT')" defaultValue="NORMAL">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_read" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_sent" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_email_sent" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_push_sent" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="read_at" type="TIMESTAMP"/>
+            <column name="sent_at" type="TIMESTAMP"/>
+            <column name="expires_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <addForeignKeyConstraint
+            baseTableName="notifications"
+            baseColumnNames="recipient_id"
+            referencedTableName="users"
+            referencedColumnNames="id"
+            constraintName="fk_notifications_recipient_id"
+            onDelete="CASCADE"/>
+            
+        <addForeignKeyConstraint
+            baseTableName="notifications"
+            baseColumnNames="sender_id"
+            referencedTableName="users"
+            referencedColumnNames="id"
+            constraintName="fk_notifications_sender_id"
+            onDelete="SET NULL"/>
+            
+        <createIndex tableName="notifications" indexName="idx_notifications_recipient_id">
+            <column name="recipient_id"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_sender_id">
+            <column name="sender_id"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_type">
+            <column name="type"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_priority">
+            <column name="priority"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_is_read">
+            <column name="is_read"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_is_sent">
+            <column name="is_sent"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_created_at">
+            <column name="created_at"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_expires_at">
+            <column name="expires_at"/>
+        </createIndex>
+        
+        <createIndex tableName="notifications" indexName="idx_notifications_entity_type_id">
+            <column name="entity_type"/>
+            <column name="entity_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

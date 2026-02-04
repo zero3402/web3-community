@@ -1,0 +1,145 @@
+# Analytics Service Spring MVC Application Configuration
+server:
+  port: 8086
+
+spring:
+  application:
+    name: analytics-service
+  
+  # Database Configuration
+  datasource:
+    url: jdbc:mysql://localhost:3306/web3_community?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 100
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+
+  # Liquibase Configuration
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    enabled: true
+
+  # Batch Configuration for analytics processing
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: always
+
+  # Cache Configuration
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=5000,expireAfterWrite=30m
+
+  # Jackson Configuration
+  jackson:
+    time-zone: UTC
+    date-format: yyyy-MM-dd HH:mm:ss
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# JWT Configuration
+jwt:
+  secret: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
+  expiration: 86400000 # 24 hours
+
+# Analytics Configuration
+analytics:
+  retention:
+    raw-events-days: 90
+    aggregated-data-days: 365
+  processing:
+    batch-size: 1000
+    batch-timeout: 5000
+    cleanup-interval: 24h
+  aggregation:
+    enabled: true
+    schedule: "0 0 2 * * *" # Daily at 2 AM
+  sampling:
+    enabled: true
+    rate: 100 # Sample every 100th event for low-priority events
+
+# Logging Configuration
+logging:
+  level:
+    com.web3community.analytics: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/analytics-service.log
+
+# Management Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Eureka Client Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    metadata-map:
+      zone: zone1
+
+# Circuit Breaker Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      analyticsService:
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 20
+  retry:
+    instances:
+      analyticsService:
+        max-attempts: 3
+        wait-duration: 1s
+
+# Security Configuration
+security:
+  jwt:
+    header: Authorization
+    prefix: Bearer

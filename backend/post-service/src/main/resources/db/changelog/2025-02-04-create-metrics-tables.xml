@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/db.changelog-4.0.xsd">
+
+    <!-- Post Metrics Table -->
+    <changeSet id="create-post-metrics-table" author="developer">
+        <createTable tableName="post_metrics">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="post_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="metric_type" type="ENUM('VIEWS', 'LIKES', 'SHARES', 'COMMENTS', 'BOOKMARKS', 'REPORTS')">
+                <constraints nullable="false"/>
+            </column>
+            <column name="count" type="BIGINT" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <addForeignKeyConstraint
+            baseTableName="post_metrics"
+            baseColumnNames="post_id"
+            referencedTableName="posts"
+            referencedColumnNames="id"
+            constraintName="fk_post_metrics_post_id"
+            onDelete="CASCADE"/>
+            
+        <createIndex tableName="post_metrics" indexName="idx_post_metrics_post_id">
+            <column name="post_id"/>
+        </createIndex>
+        
+        <createIndex tableName="post_metrics" indexName="idx_post_metrics_type">
+            <column name="metric_type"/>
+        </createIndex>
+        
+        <addUniqueConstraint 
+            tableName="post_metrics" 
+            columnNames="post_id,metric_type" 
+            constraintName="uk_post_metrics_post_type"/>
+    </changeSet>
+
+</databaseChangeLog>
