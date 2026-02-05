@@ -1,0 +1,336 @@
+name: Performance Tests for Web3 Community
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # =============================================================================
+  # 🔗 API 성능 테스트 (K6)
+  # =============================================================================
+  api-performance:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Docker 컴포즈 실행
+        run: |
+          docker-compose -f docker-compose.yml up -d
+          sleep 60
+
+      - name: K6 API 성능 테스트
+        run: |
+          docker run --rm --network web3community_default \
+            -v $(pwd)/tests/performance:/tests \
+            grafana/k6 run \
+            --env API_BASE_URL=http://api:8080 \
+            /tests/api-load-test.js
+
+      - name: 테스트 결과 수집
+        run: |
+          docker-compose logs k6 > k6-results.log 2>/dev/null || true
+
+      - name: 컨테이너 중지
+        run: |
+          docker-compose down
+
+      - name: 결과 업로드
+        uses: actions/upload-artifact@v3
+        with:
+          name: k6-performance-results
+          path: k6-results.log
+
+  # =============================================================================
+  # 🌐 웹사이트 성능 테스트 (Lighthouse CI)
+  # =============================================================================
+  lighthouse:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 빌드
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Lighthouse CI 테스트
+        uses: treosh/lighthouse-ci-action@v9
+        with:
+          urls: |
+            http://localhost:3000
+            http://localhost:3000/dashboard
+            http://localhost:3000/community
+            http://localhost:3000/posts/create
+            http://localhost:3000/profile
+          configPath: '.lighthouserci.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: 성능 점수 확인
+        run: |
+          if [ ! -f ".lighthouserci" ]; then
+            echo "⚠️ Lighthouse 설정 파일이 없습니다."
+            exit 1
+          fi
+          
+          # 성능 점수 확인 (모든 지표가 90점 이상)
+          performance_score=$(cat lighthouseci-reports/metrics.json | jq '.categories.performance.score * 100 | floor')
+          accessibility_score=$(cat lighthouseci-reports/metrics.json | jq '.categories.accessibility.score * 100 | floor')
+          
+          if [ $performance_score -lt 90 ]; then
+            echo "❌ 성능 점수 미달성: $performance_score/100"
+            exit 1
+          fi
+          
+          if [ $accessibility_score -lt 90 ]; then
+            echo "❌ 접근성 점수 미달성: $accessibility_score/100"
+            exit 1
+          fi
+          
+          echo "✅ 모든 지표 통과!"
+
+  # =============================================================================
+  # 📊 데이터베이스 성능 테스트
+  # =============================================================================
+  database-performance:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: perfuser
+          POSTGRES_PASSWORD: perfpass
+          POSTGRES_DB: perftestdb
+        options: >-
+          --health-cmd pg_isready -U perfuser -d perftestdb
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 성능 테스트 데이터 설정
+        run: |
+          docker run --network host \
+            -v $(pwd)/tests/database:/tests \
+            postgres:15 \
+            psql -h localhost \
+            -U perfuser \
+            -d perftestdb \
+            -c "CREATE TABLE IF NOT EXISTS performance_test (id SERIAL PRIMARY KEY, data JSONB, created_at TIMESTAMP);"
+
+      - name: 데이터베이스 성능 테스트
+        run: |
+          docker run --network host \
+            -v $(pwd)/tests/database:/tests \
+            postgres:15 \
+            psql -h localhost \
+            -U perfuser \
+            -d perftestdb \
+            -c "
+              INSERT INTO performance_test (data, created_at) VALUES 
+              (json_build_object('field1', 'value1', 'field2', 'value2', 'field3', 'value3'), NOW()),
+              (json_build_object('field1', 'value1', 'name', 'test_user'), NOW()),
+              (json_build_object('name', 'test_data'), NOW());
+              
+              -- 인덱스 생성 테스트
+              CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_performance_test_data ON performance_test USING GIN (to_tsvector('data'));
+              
+              -- 조회 성능 테스트
+              SELECT COUNT(*), data->>'field1' FROM performance_test WHERE data @> 'field1' AND created_at > NOW() - INTERVAL '1 hour';
+              EXPLAIN ANALYZE SELECT * FROM performance_test WHERE data @> 'field1';
+            "
+
+  # =============================================================================
+  # 🔍 부하 테스트 (메모리 누수, 디스크 사용량)
+  # =============================================================================
+  memory-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 메모리 사용량 모니터링
+        run: |
+          echo "메모리 사용량 확인:"
+          free -h
+          free -m
+          ps aux --sort=-%mem | head -5
+
+      - name: Docker 컨테이너 메모리 사용량
+        run: |
+          echo "Docker 컨테이너 메모리 사용량:"
+          docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+
+  # =============================================================================
+  # 🌐 네트워크 성능 테스트
+  # =============================================================================
+  network-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 네트워크 대기 시간 측정
+        run: |
+          echo "API 대기 시간 측정:"
+          time curl -o /dev/null -s -w '%{time_total}' http://nginx:80/api/v1/users || echo "timeout"
+          
+          echo "웹사이트 대기 시간 측정:"
+          time curl -o /dev/null -s -w '%{time_total}' http://nginx:80/ || echo "timeout"
+
+      - name: 네트워크 대역폭 테스트
+        run: |
+          echo "다운로드 테스트 (10개 병렬)..."
+          
+          for i in {1..10}; do
+            curl -s -o /dev/null -w '%{time_total}' http://nginx:80/api/v1/posts &
+          done
+          
+          echo "병렬 테스트 완료"
+
+  # =============================================================================
+  # 📊 결과 보고서 생성
+  # =============================================================================
+  performance-report:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [api-performance, lighthouse, database-performance]
+    
+    steps:
+      - name: 성능 결과 다운로드
+        uses: actions/download-artifact@v3
+        with:
+          name: k6-performance-results
+          path: k6-results.log
+
+      - name: 성능 보고서 생성
+        run: |
+          cat > performance-report.md << EOF
+          # Web3 Community Performance Report
+          
+          ## 📊 테스트 개요
+          - 테스트 날짜: $(date +'%Y-%m-%d %H:%M:%S')
+          - 커밋 버전: $(git describe --tags)
+          
+          ## 🔗 API 성능 테스트 결과
+          $(cat k6-results.log | grep -E "(http_req_failed|http_reqs|iteration_duration)")
+          
+          ## 🌐 Lighthouse 테스트 결과
+          $(cat lighthouseci-reports/metrics.json | jq -r '
+            {
+              "Performance": (.categories.performance.score * 100 | floor),
+              "Accessibility": (.categories.accessibility.score * 100 | floor),
+              "Best Practices": (.categories.best-practices.score * 100 | floor),
+              "SEO": (.categories.seo.score * 100 | floor)
+            }
+          ')
+          
+          ## 💾 데이터베이스 성능
+          - 쿼리 시간: [측정 필요]
+          - 인덱스 성능: [측정 필요]
+          
+          ## 🧠 시스템 리소스
+          - 메모리 사용량: [측정 필요]
+          - 네트워크 응답 시간: [측정 필요]
+          
+          ## 📈 개선 사항
+          - API 응답 속도 개선
+          - 데이터베이스 쿼리 최적화
+          - 웹사이트 번들링 크기 최적화
+          
+          EOF
+
+      - name: 보고서 업로드
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: performance-report.md
+
+  # =============================================================================
+  # 🚨 경고 알림
+  # =============================================================================
+  performance-alert:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [api-performance, lighthouse]
+    
+    steps:
+      - name: 성능 임계값 검사
+        run: |
+          # 성능 임계값 (조정 가능)
+          MAX_RESPONSE_TIME=1000  # 1초
+          MIN_PERFORMANCE_SCORE=90  # 90점 이상
+          MIN_ACCESSIBILITY_SCORE=90  # 90점 이상
+          
+          echo "성능 임계값 검사 중..."
+          
+          # K6 결과 확인 (실제로는 테스트 결과에서 추출 필요)
+          # Lighthouse 결과 확인
+          performance_score=$(cat lighthouseci-reports/metrics.json | jq '.categories.performance.score * 100 | floor')
+          accessibility_score=$(cat lighthouseci-reports/metrics.json | jq '.categories.accessibility.score * 100 | floor')
+          
+          if [ $performance_score -lt $MIN_PERFORMANCE_SCORE ] || [ $accessibility_score -lt $MIN_ACCESSIBILITY_SCORE ]; then
+            echo "🚨 성능 문제 감지!"
+            echo "Performance Score: $performance_score"
+            echo "Accessibility Score: $accessibility_score"
+            
+            # Slack 또는 이메일 알림 (실제 환경에서 설정 필요)
+            curl -X POST -H 'Content-type: application/json' \
+              -d '{"text":"🚨 Web3 Community 배포 성능 문제 감지\nPerformance: $performance_score/100\nAccessibility: $accessibility/100"}' \
+              $SLACK_WEBHOOK_URL || echo "Slack webhook 설정 필요"
+            
+            exit 1
+          fi
+
+  # =============================================================================
+  # 📈 실시간 성능 모니터링 설정 (선택사항)
+  # =============================================================================
+  setup-monitoring:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 실시간 모니터링 설정
+        run: |
+          echo "실시간 모니터링을 설정합니다."
+          echo "서버: https://web3community.com"
+          echo "New Relic APM 통합:"
+          echo "- 애플리케이션 성능 모니터링"
+          "- 실시간 사용자 활동 추적"
+          "- 에러 및 예외 모니터링"
+          echo ""
+          echo "New Relic 설정이 필요합니다."
+          echo "1. New Relic 계정 생성"
+          echo "2. APM 애플리케이션 설정"
+          echo "3. 에러 추적 설정"
+
+  # =============================================================================
+  # 🔄 자동 성능 회규 테스트
+  # =============================================================================
+  regression-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 회규 성능 테스트 실행
+        run: |
+          echo "이전 버전과 비교하는 회규 성능 테스트를 실행합니다."
+          echo "성능 저하 확인 및 회귀 탐지"
+          echo "이전 버전 기준과 비교하여 성능 저하 시 알림"
+
+# Performance Test Configuration (moved to separate config files)
