@@ -7,6 +7,8 @@
 // =============================================================================
 
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
 import type { RouteRecordRaw } from 'vue-router'
 
 // =============================================================================
@@ -360,78 +362,150 @@ const router = createRouter({
 // =============================================================================
 // 🔍 라우트 가드 설정
 // =============================================================================
-// 인증 가드
+// =============================================================================
+// 🔐 라우터 가드
+// =============================================================================
+// 전역前置 가드
 router.beforeEach(async (to, from, next) => {
-  // 페이지 전환 시작
+  const authStore = useAuthStore()
+
+  // 인증 초기화
+  if (!authStore.isInitialized) {
+    try {
+      await authStore.initialize()
+    } catch (error) {
+      console.error('Auth initialization failed:', error)
+    }
+  }
+
+  // 로딩 상태 표시
   document.body.classList.add('route-changing')
-  
-  try {
-    // 인증이 필요한 라우트인지 확인
-    if (to.meta.requiresAuth) {
-      const token = localStorage.getItem('token')
-      
-      if (!token) {
-        // 토큰이 없으면 로그인 페이지로 리다이렉트
-        return next({
-          name: 'Login',
-          query: { redirect: to.fullPath }
-        })
-      }
-      
-      // 토큰 유효성 검사 (필요시)
-      if (import.meta.env.PROD) {
-        // 프로덕션 환경에서만 토큰 검증
-        // try {
-        //   const response = await fetch('/api/auth/verify', {
-        //     headers: {
-        //       Authorization: `Bearer ${token}`
-        //     }
-        //   })
-        //   
-        //   if (!response.ok) {
-        //     localStorage.removeItem('token')
-        //     return next({ name: 'Login' })
-        //   }
-        // } catch (error) {
-        //   console.error('Token verification failed:', error)
-        //   return next({ name: 'Login' })
-        // }
-      }
+
+  // 제목 설정
+  if (to.meta?.title) {
+    document.title = `${to.meta.title} - Web3 Community`
+  } else {
+    document.title = 'Web3 Community Platform'
+  }
+
+  // 게스트 필요 페이지
+  if (to.meta?.requiresGuest && authStore.isAuthenticated) {
+    next('/dashboard')
+    return
+  }
+
+  // 인증 필요 페이지
+  if (to.meta?.requiresAuth && !authStore.isAuthenticated) {
+    next({
+      path: '/auth/login',
+      query: { redirect: to.fullPath }
+    })
+    return
+  }
+
+  // 권한 체크
+  if (!authStore.canAccessRoute(to)) {
+    if (authStore.isAuthenticated) {
+      next('/403')
+    } else {
+      next({
+        path: '/auth/login',
+        query: { redirect: to.fullPath }
+      })
     }
-    
-    // 권한 체크
-    if (to.meta.role) {
-      const userRole = localStorage.getItem('userRole')
-      
-      if (!to.meta.role.includes(userRole)) {
-        return next({ name: 'Home' })
-      }
+    return
+  }
+
+  // 활성 사용자 체크
+  if (to.meta?.requiresAuth && authStore.isAuthenticated && !authStore.isActiveUser) {
+    ElMessage.warning('계정이 비활성화되었습니다. 관리자에게 문의해주세요.')
+    next('/auth/login')
+    return
+  }
+
+  // 이메일 인증 필요 페이지
+  if (to.meta?.requiresEmailVerification && 
+      authStore.isAuthenticated && 
+      !authStore.isEmailVerified) {
+    ElMessage.warning('이메일 인증이 필요합니다.')
+    next('/auth/verify-email')
+    return
+  }
+
+  next()
+})
+
+// 전역 후처리 가드
+router.afterEach((to, from) => {
+  // 로딩 상태 제거
+  document.body.classList.remove('route-changing')
+
+  // 분석 로깅 (선택사항)
+  if (import.meta.env.PROD) {
+    // Google Analytics 또는 다른 분석 툴에 페이지 뷰 전송
+    if (typeof gtag !== 'undefined') {
+      gtag('config', 'GA_MEASUREMENT_ID', {
+        page_path: to.path
+      })
     }
-    
-    next()
-  } catch (error) {
-    console.error('Route guard error:', error)
-    next()
+  }
+
+  // 디버그 로그
+  if (import.meta.env.DEV) {
+    console.log(`Route changed: ${from.path} -> ${to.path}`)
   }
 })
 
-// 페이지 전환 완료 후
-router.afterEach((to, from) => {
-  // 페이지 전환 효과 제거
-  document.body.classList.remove('route-changing')
+// 에러 핸들러
+router.onError((error) => {
+  console.error('Router error:', error)
   
-  // 모바일 메뉴 닫기
-  const mobileMenu = document.querySelector('.mobile-menu')
-  if (mobileMenu) {
-    mobileMenu.classList.remove('open')
-  }
-  
-  // 로딩 상태 업데이트
-  const loadingElement = document.getElementById('page-loading')
-  if (loadingElement) {
-    loadingElement.style.display = 'none'
+  // 치명적인 에러인 경우 에러 페이지로 이동
+  if (error.name === 'ChunkLoadError') {
+    ElMessage.error('페이지 로딩 중 오류가 발생했습니다. 페이지를 새로고침해주세요.')
+    window.location.reload()
   }
 })
+
+// =============================================================================
+// 🎯 라우터 유틸리티
+// =============================================================================
+export const routerUtils = {
+  // 현재 라우트 이름 가져오기
+  getCurrentRouteName: () => router.currentRoute.value.name,
+  
+  // 라우트 이동
+  push: (to: string | any) => router.push(to),
+  
+  // 라우트 교체
+  replace: (to: string | any) => router.replace(to),
+  
+  // 뒤로 가기
+  back: () => router.back(),
+  
+  // 앞으로 가기
+  forward: () => router.forward(),
+  
+  // 특정 경로로 이동 (권한 체크)
+  navigateWithPermission: async (to: string | any) => {
+    const authStore = useAuthStore()
+    
+    if (typeof to === 'string') {
+      const route = router.resolve(to)
+      if (authStore.canAccessRoute(route)) {
+        await router.push(to)
+      } else {
+        ElMessage.error('접근 권한이 없습니다.')
+      }
+    } else {
+      if (authStore.canAccessRoute(to)) {
+        await router.push(to)
+      } else {
+        ElMessage.error('접근 권한이 없습니다.')
+      }
+    }
+  }
+}
 
 // =============================================================================
 // 🔧 라우터 확장 메소드
