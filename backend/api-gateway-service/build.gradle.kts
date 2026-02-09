@@ -5,7 +5,7 @@ plugins {
     kotlin("plugin.spring") version "1.9.20"
 }
 
-group = "com.web3community"
+group = "com.web3.community"
 version = "1.0.0"
 
 java {
@@ -26,9 +26,12 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-gateway")
     implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 

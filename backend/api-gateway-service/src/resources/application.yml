@@ -1,37 +1,33 @@
 # Auth Service Spring Application Configuration
 server:
-  port: 8082
+  port: 8081
 
 spring:
   application:
-    name: auth-service
-  
-  # Database Configuration
-  r2dbc:
-    url: r2dbc:mysql://localhost:3306/web3_community?useSSL=false&serverTimezone=UTC
-    username: root
-    password: password
-    driver: com.github.jasync.sql.db.mysql.MySQLDriver
-  sql:
-    init:
-      mode: always
-
-  # Liquibase Configuration
-  liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.xml
-    enabled: true
-
-# JWT Configuration
-jwt:
-  secret: web3-community-jwt-secret-key-for-production-environment-with-sufficient-length
-  expiration: 86400000 # 24 hours
-  refresh-expiration: 604800000 # 7 days
-  issuer: web3-community
-
-# Password Encoder Configuration
-password:
-  encoder:
-    strength: 12
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/auth/**
+        - id: user-service
+          uri: http://user-service:8082
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - JwtAuthFilter
+        - id: post-service
+          uri: http://post-service:8084
+          predicates:
+            - Path=/api/posts/**
+          filters:
+            - JwtAuthFilter
+            - name: CircuitBreaker
+              args:
+                name: postServiceCB
+                fallbackUri: forward:/fallback/post
 
 # Logging Configuration
 logging:
@@ -43,7 +39,7 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: logs/auth-service.log
+    name: logs/api-gateway-service.log
 
 # Management Configuration
 management:
@@ -55,24 +51,12 @@ management:
     health:
       show-details: always
 
-# Eureka Client Configuration
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka
-    register-with-eureka: true
-    fetch-registry: true
-  instance:
-    prefer-ip-address: true
-    metadata-map:
-      zone: zone1
 
 # Circuit Breaker Configuration
 resilience4j:
   circuitbreaker:
-    instances:
-      authService:
-        failure-rate-threshold: 50
-        minimum-number-of-calls: 10
-        wait-duration-in-open-state: 30s
-        sliding-window-size: 20
+    configs:
+      default:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10000
