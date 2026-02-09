@@ -30,7 +30,6 @@ subprojects {
             jvmTarget = "17"
         }
     }
-
     dependencies {
         "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")

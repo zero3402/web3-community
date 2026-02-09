@@ -9,7 +9,11 @@
           <set>
             <option value="$PROJECT_DIR$/backend" />
             <option value="$PROJECT_DIR$/backend/api-gateway-service" />
+            <option value="$PROJECT_DIR$/backend/auth-service" />
+            <option value="$PROJECT_DIR$/backend/board-service" />
+            <option value="$PROJECT_DIR$/backend/comment-service" />
             <option value="$PROJECT_DIR$/backend/common" />
+            <option value="$PROJECT_DIR$/backend/user-service" />
           </set>
         </option>
       </GradleProjectSettings>
