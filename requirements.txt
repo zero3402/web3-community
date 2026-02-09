@@ -1,10 +1,21 @@
 게시판 만들기
-- MSA
-  - Vue.js
-  - MySQL
-  - MongoDB
-  - Redis
-  - Kafka
-  - Webflux
-  - MVC
-  - Kotlin
+
+
+## 🏗️ 전체 아키텍처
+
+
+### 📦 **Infrastructure**
+- **MySQL 8.0** - 관계형 데이터베이스
+- **Redis 7-alpine** - 캐싱 및 세션 저장
+
+### 🌐 **Platform Services**
+- **API Gateway** - Spring Cloud Gateway + 루트롤
+
+### 🧑 **DDD Microservices**
+- **User Service** (Port 8081) - 사용자 관리
+- **Auth Service** (Port 8082) - 인증/인가
+- **Post Service** (Data Port 8083) - 컨텐츠 관리
+- **Comment Service** (Port 8084) - 댓글 시스템
+
+### 🌐 **Frontend**
+- **Vue SPA** (Port 3000) - 웹 프론트앤드
