@@ -1,21 +1,22 @@
-게시판 만들기
+요구사항
+1. Backend
+1) 서비스 종류
+- API Gateway : API Gateway
+- Common : 공통 모듈
+- User Service : 사용자 서비스 서버
+- Auth Service : 인증 서비스 서버
+- Post Service : 게시판 서비스 서버
+- Comment Service : 댓글 서비스 서버
 
+2) 기술
+※ 위 서비스 목적에 맞게 기술 적용 및 근거 상세 설명
+- Spring Boot WebFlux
+- Spring Boot MVC
+- Redis
+- MySQL
+- MongoDB
+- Kafka
 
-## 🏗️ 전체 아키텍처
-
-
-### 📦 **Infrastructure**
-- **MySQL 8.0** - 관계형 데이터베이스
-- **Redis 7-alpine** - 캐싱 및 세션 저장
-
-### 🌐 **Platform Services**
-- **API Gateway** - Spring Cloud Gateway + 루트롤
-
-### 🧑 **DDD Microservices**
-- **User Service** (Port 8081) - 사용자 관리
-- **Auth Service** (Port 8082) - 인증/인가
-- **Post Service** (Data Port 8083) - 컨텐츠 관리
-- **Comment Service** (Port 8084) - 댓글 시스템
-
-### 🌐 **Frontend**
-- **Vue SPA** (Port 3000) - 웹 프론트앤드
+2. Frontend
+1) 기술
+- Vue.js

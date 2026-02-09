@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$/backend" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/backend" />
+            <option value="$PROJECT_DIR$/backend/api-gateway-service" />
+            <option value="$PROJECT_DIR$/backend/auth-service" />
+            <option value="$PROJECT_DIR$/backend/board-service" />
+            <option value="$PROJECT_DIR$/backend/comment-service" />
+            <option value="$PROJECT_DIR$/backend/common" />
+            <option value="$PROJECT_DIR$/backend/user-service" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>
