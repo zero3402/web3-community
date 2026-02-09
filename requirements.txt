@@ -20,3 +20,6 @@
 2. Frontend
 1) 기술
 - Vue.js
+
+3. 배포
+- K8S
