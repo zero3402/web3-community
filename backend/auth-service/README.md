@@ -39,5 +39,4 @@
 1. **Post Service** (Content Management)
 2. **Comment Service** (Nested Comments)
 3. **Notification Service** (Real-time)
-4. **Analytics Service** (Metrics)
 5. **Testing & Integration**
