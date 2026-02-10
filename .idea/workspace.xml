@@ -6,30 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/md5-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/sha1-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/api-gateway-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api-gateway-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/api-gateway-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api-gateway-service/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/auth-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/config/JwtConfig.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/config/JwtConfig.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/controller/AuthController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/controller/AuthController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/service/AuthService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/service/AuthService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/controller/CommentController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/controller/CommentController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/service/CommentService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/service/CommentService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/CategoryController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/CategoryController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/PostController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/PostController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/user-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/user-service/src/main/kotlin/com/web3/community/user/controller/UserController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/src/main/kotlin/com/web3/community/user/controller/UserController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
