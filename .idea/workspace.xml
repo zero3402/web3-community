@@ -4,7 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="" />
+    <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/service/AuthService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/service/AuthService.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

@@ -155,10 +155,7 @@ class AuthService(
     private fun createUserProfile(email: String, nickname: String): UserResponse {
         val apiResponse = userClient.createUserProfile(CreateUserRequest(email, nickname))
 
-        if (!apiResponse.success) {
-            throw BusinessException(ErrorCode.INTERNAL_ERROR)
-        }
-
-        return apiResponse.data ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
+        return apiResponse.takeIf { it.success }?.data
+                ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
     }
 }
