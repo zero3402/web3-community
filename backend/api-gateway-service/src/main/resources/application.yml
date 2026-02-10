@@ -13,14 +13,6 @@ jwt:
   refresh-token-expiration: 604800000
   issuer: web3-community
 
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10000
-
 management:
   endpoints:
     web:

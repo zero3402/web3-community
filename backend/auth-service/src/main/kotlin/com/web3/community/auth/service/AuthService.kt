@@ -12,6 +12,7 @@ import com.web3.community.common.exception.BusinessException
 import com.web3.community.common.exception.ErrorCode
 import com.web3.community.common.jwt.JwtProperties
 import com.web3.community.common.jwt.JwtTokenProvider
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -21,15 +22,16 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
+import java.time.LocalDateTime
 
 @Service
 class AuthService(
-    private val authCredentialRepository: AuthCredentialRepository,
-    private val refreshTokenService: RefreshTokenService,
-    private val jwtTokenProvider: JwtTokenProvider,
-    private val jwtProperties: JwtProperties,
-    private val passwordEncoder: PasswordEncoder,
-    private val userClient: UserClient
+        private val authCredentialRepository: AuthCredentialRepository,
+        private val refreshTokenService: RefreshTokenService,
+        private val jwtTokenProvider: JwtTokenProvider,
+        private val jwtProperties: JwtProperties,
+        private val passwordEncoder: PasswordEncoder,
+        @Qualifier("com.web3.community.auth.client.UserClient") private val userClient: UserClient
 ) {
 
     @Transactional
@@ -108,7 +110,7 @@ class AuthService(
         }
 
         credential.password = passwordEncoder.encode(request.newPassword)
-        credential.updatedAt = java.time.LocalDateTime.now()
+        credential.updatedAt = LocalDateTime.now()
         authCredentialRepository.save(credential)
     }
 

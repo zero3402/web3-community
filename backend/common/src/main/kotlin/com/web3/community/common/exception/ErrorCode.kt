@@ -10,6 +10,7 @@ enum class ErrorCode(
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "C001", "Invalid input"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "C002", "Internal server error"),
+    SYSTEM_BUSY(HttpStatus.SERVICE_UNAVAILABLE, "C003", "서비스 이용이 원활하지 않습니다."),
 
     // Auth
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "A001", "Invalid credentials"),
