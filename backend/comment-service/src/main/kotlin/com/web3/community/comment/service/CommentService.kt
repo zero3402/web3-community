@@ -3,6 +3,8 @@ package com.web3.community.comment.service
 import com.web3.community.comment.document.Comment
 import com.web3.community.comment.dto.*
 import com.web3.community.comment.repository.CommentRepository
+import com.web3.community.common.exception.BusinessException
+import com.web3.community.common.exception.ErrorCode
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -84,10 +86,10 @@ class CommentService(
 
     fun updateComment(id: String, userId: Long, request: UpdateCommentRequest): Mono<CommentResponse> {
         return commentRepository.findById(id)
-            .switchIfEmpty(Mono.error(RuntimeException("Comment not found")))
+            .switchIfEmpty(Mono.error(BusinessException(ErrorCode.COMMENT_NOT_FOUND)))
             .flatMap { comment ->
                 if (comment.authorId != userId) {
-                    return@flatMap Mono.error<Comment>(RuntimeException("Forbidden"))
+                    return@flatMap Mono.error<Comment>(BusinessException(ErrorCode.FORBIDDEN))
                 }
                 comment.content = request.content
                 comment.updatedAt = LocalDateTime.now()
@@ -98,10 +100,10 @@ class CommentService(
 
     fun deleteComment(id: String, userId: Long): Mono<Void> {
         return commentRepository.findById(id)
-            .switchIfEmpty(Mono.error(RuntimeException("Comment not found")))
+            .switchIfEmpty(Mono.error(BusinessException(ErrorCode.COMMENT_NOT_FOUND)))
             .flatMap { comment ->
                 if (comment.authorId != userId) {
-                    return@flatMap Mono.error<Comment>(RuntimeException("Forbidden"))
+                    return@flatMap Mono.error<Comment>(BusinessException(ErrorCode.FORBIDDEN))
                 }
                 comment.deleted = true
                 comment.content = ""
@@ -113,7 +115,7 @@ class CommentService(
 
     fun toggleLike(id: String, userId: Long): Mono<CommentResponse> {
         return commentRepository.findById(id)
-            .switchIfEmpty(Mono.error(RuntimeException("Comment not found")))
+            .switchIfEmpty(Mono.error(BusinessException(ErrorCode.COMMENT_NOT_FOUND)))
             .flatMap { comment ->
                 if (comment.likedUserIds.contains(userId)) {
                     comment.likedUserIds.remove(userId)

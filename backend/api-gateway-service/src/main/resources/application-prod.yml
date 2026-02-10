@@ -1,0 +1,74 @@
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - ${CORS_ALLOWED_ORIGINS}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 10
+            redis-rate-limiter.burstCapacity: 20
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@ipKeyResolver}"
+      routes:
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL}
+          predicates:
+            - Path=/auth/**
+        - id: user-service
+          uri: ${USER_SERVICE_URL}
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - JwtAuthFilter
+        - id: comment-service
+          uri: ${COMMENT_SERVICE_URL}
+          predicates:
+            - Path=/api/comments/**
+          filters:
+            - JwtAuthFilter
+        - id: post-service
+          uri: ${POST_SERVICE_URL}
+          predicates:
+            - Path=/api/posts/**
+          filters:
+            - JwtAuthFilter
+            - name: CircuitBreaker
+              args:
+                name: postServiceCB
+                fallbackUri: forward:/fallback/post
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
+jwt:
+  secret: ${JWT_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+logging:
+  level:
+    com.web3.community.gateway: WARN
+    org.springframework.cloud.gateway: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

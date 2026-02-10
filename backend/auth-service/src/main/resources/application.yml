@@ -4,24 +4,8 @@ server:
 spring:
   application:
     name: auth-service
-  datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/web3_auth?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&createDatabaseIfNotExist=true
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-        format_sql: true
-    show-sql: true
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
 
 jwt:
   secret: ${JWT_SECRET:dGhpcyBpcyBhIHZlcnkgbG9uZyBzZWNyZXQga2V5IGZvciBqd3QgdG9rZW4gZ2VuZXJhdGlvbg==}
@@ -29,13 +13,11 @@ jwt:
   refresh-token-expiration: 604800000
   issuer: web3-community
 
-services:
-  user-service-url: ${USER_SERVICE_URL:http://localhost:8082}
-
-logging:
-  level:
-    com.web3.community.auth: DEBUG
-    org.springframework.security: DEBUG
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:

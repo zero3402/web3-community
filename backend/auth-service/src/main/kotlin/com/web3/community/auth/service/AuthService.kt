@@ -15,6 +15,7 @@ import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestTemplate
 
 @Service
@@ -36,7 +37,8 @@ class AuthService(
         }
 
         val userResponse = createUserProfile(request.email, request.nickname)
-        val userId = (userResponse["data"] as Map<*, *>)["id"] as Int
+        val data = userResponse["data"] as? Map<*, *> ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
+        val userId = (data["id"] as? Number)?.toInt() ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
 
         val credential = AuthCredential(
             email = request.email,
@@ -156,10 +158,15 @@ class AuthService(
         val body = mapOf("email" to email, "nickname" to nickname)
         val entity = HttpEntity(body, headers)
 
-        return restTemplate.postForObject(
-            "$userServiceUrl/api/users",
-            entity,
-            Map::class.java
-        ) as Map<String, Any>
+        try {
+            val response = restTemplate.postForObject(
+                "$userServiceUrl/api/users",
+                entity,
+                Map::class.java
+            ) as? Map<String, Any> ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
+            return response
+        } catch (e: RestClientException) {
+            throw BusinessException(ErrorCode.INTERNAL_ERROR)
+        }
     }
 }

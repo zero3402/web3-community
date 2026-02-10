@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/sungjun/workspace/my-git/web3-community/backend log --oneline -10)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(xargs:*)",
+      "Bash(ls:*)",
+      "Bash(done)",
+      "Bash(./gradlew compileKotlin compileTestKotlin:*)",
+      "Bash(./gradlew :auth-service:compileTestKotlin:*)",
+      "Bash(./gradlew:*)"
+    ]
+  }
+}
