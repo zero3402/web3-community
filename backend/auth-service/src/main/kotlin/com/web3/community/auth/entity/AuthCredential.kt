@@ -31,6 +31,4 @@ data class AuthCredential(
         var updatedAt: LocalDateTime = LocalDateTime.now()
 )
 
-enum class Role {
-    USER, ADMIN, MODERATOR
-}
+

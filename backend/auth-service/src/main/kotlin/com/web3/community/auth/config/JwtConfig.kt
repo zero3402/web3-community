@@ -16,13 +16,4 @@ class JwtConfig {
     fun jwtTokenProvider(properties: JwtProperties): JwtTokenProvider {
         return JwtTokenProvider(properties)
     }
-
-    @Bean
-    fun restTemplate(): RestTemplate {
-        val factory = SimpleClientHttpRequestFactory().apply {
-            setConnectTimeout(5000)
-            setReadTimeout(5000)
-        }
-        return RestTemplate(factory)
-    }
 }

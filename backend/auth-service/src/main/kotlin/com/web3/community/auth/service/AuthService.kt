@@ -1,9 +1,13 @@
 package com.web3.community.auth.service
 
+import com.web3.community.auth.client.UserClient
 import com.web3.community.auth.dto.*
+import com.web3.community.auth.dto.user.CreateUserRequest
+import com.web3.community.auth.dto.user.UserResponse
 import com.web3.community.auth.entity.AuthCredential
 import com.web3.community.auth.entity.Role
 import com.web3.community.auth.repository.AuthCredentialRepository
+import com.web3.community.common.dto.ApiResponse
 import com.web3.community.common.exception.BusinessException
 import com.web3.community.common.exception.ErrorCode
 import com.web3.community.common.jwt.JwtProperties
@@ -25,10 +29,8 @@ class AuthService(
     private val jwtTokenProvider: JwtTokenProvider,
     private val jwtProperties: JwtProperties,
     private val passwordEncoder: PasswordEncoder,
-    private val restTemplate: RestTemplate
+    private val userClient: UserClient
 ) {
-    @Value("\${services.user-service-url:http://localhost:8082}")
-    private lateinit var userServiceUrl: String
 
     @Transactional
     fun register(request: RegisterRequest): LoginResponse {
@@ -36,15 +38,13 @@ class AuthService(
             throw BusinessException(ErrorCode.DUPLICATE_EMAIL)
         }
 
-        val userResponse = createUserProfile(request.email, request.nickname)
-        val data = userResponse["data"] as? Map<*, *> ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
-        val userId = (data["id"] as? Number)?.toInt() ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
+        val userProfile = createUserProfile(request.email, request.nickname)
 
         val credential = AuthCredential(
             email = request.email,
             password = passwordEncoder.encode(request.password),
             role = Role.USER,
-            userId = userId.toLong()
+            userId = userProfile.id
         )
         authCredentialRepository.save(credential)
 
@@ -150,23 +150,13 @@ class AuthService(
         )
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun createUserProfile(email: String, nickname: String): Map<String, Any> {
-        val headers = HttpHeaders().apply {
-            contentType = MediaType.APPLICATION_JSON
-        }
-        val body = mapOf("email" to email, "nickname" to nickname)
-        val entity = HttpEntity(body, headers)
+    private fun createUserProfile(email: String, nickname: String): UserResponse {
+        val apiResponse = userClient.createUserProfile(CreateUserRequest(email, nickname))
 
-        try {
-            val response = restTemplate.postForObject(
-                "$userServiceUrl/api/users",
-                entity,
-                Map::class.java
-            ) as? Map<String, Any> ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
-            return response
-        } catch (e: RestClientException) {
+        if (!apiResponse.success) {
             throw BusinessException(ErrorCode.INTERNAL_ERROR)
         }
+
+        return apiResponse.data ?: throw BusinessException(ErrorCode.INTERNAL_ERROR)
     }
 }
