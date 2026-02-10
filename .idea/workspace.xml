@@ -4,7 +4,30 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="" />
+    <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/checksums.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/md5-checksums.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/sha1-checksums.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/api-gateway-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api-gateway-service/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/api-gateway-service/src/main/kotlin/com/web3/community/ApiGatewayApplication.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/api-gateway-service/src/resources/application.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/auth-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/AuthApplication.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/resources/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/comment-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/common/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/common/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/post-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/resources/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/user-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -78,10 +101,45 @@
       <recent name="$PROJECT_DIR$/backend/api-gateway-service/src/main/kotlin/com/web3/community" />
     </key>
   </component>
-  <component name="RunManager">
+  <component name="RunDashboard">
+    <option name="configurationTypes">
+      <set>
+        <option value="SpringBootApplicationConfigurationType" />
+      </set>
+    </option>
+  </component>
+  <component name="RunManager" selected="Spring Boot.ApiGatewayApplication">
     <configuration name="ApiGatewayApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
       <module name="backend.api-gateway-service.main" />
-      <option name="SPRING_BOOT_MAIN_CLASS" value="com.web3.community.ApiGatewayApplication" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.web3.community.gateway.ApiGatewayApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="AuthApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <module name="backend.auth-service.main" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.web3.community.auth.AuthApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="CommentApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <module name="backend.comment-service.main" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.web3.community.comment.CommentApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="PostApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <module name="backend.post-service.main" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.web3.community.post.PostApplication" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="UserApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+      <module name="backend.user-service.main" />
+      <option name="SPRING_BOOT_MAIN_CLASS" value="com.web3.community.user.UserApplication" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -101,7 +159,7 @@
       <workItem from="1770619192551" duration="2875000" />
       <workItem from="1770622099785" duration="1681000" />
       <workItem from="1770624208893" duration="1673000" />
-      <workItem from="1770625916683" duration="1649000" />
+      <workItem from="1770625916683" duration="4719000" />
     </task>
     <servers />
   </component>

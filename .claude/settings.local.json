@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(git -C /Users/sungjun/workspace/my-git/web3-community log --oneline -20)",
+      "Bash(ls:*)",
+      "Bash(xargs:*)",
+      "Bash(done)"
+    ]
+  }
+}

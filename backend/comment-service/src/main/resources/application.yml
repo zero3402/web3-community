@@ -1,0 +1,24 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: comment-service
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_HOST:localhost}:27017/web3_comment
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+logging:
+  level:
+    com.web3.community.comment: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

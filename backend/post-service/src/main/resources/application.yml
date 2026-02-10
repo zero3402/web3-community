@@ -1,0 +1,19 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: post-service
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_HOST:localhost}:27017/web3_post
+
+logging:
+  level:
+    com.web3.community.post: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
