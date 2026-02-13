@@ -19,6 +19,8 @@ enum class ErrorCode(
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "A004", "Email already exists"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "A005", "Unauthorized"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "A006", "Forbidden"),
+    OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "A007", "OAuth authentication failed"),
+    SOCIAL_LOGIN_ONLY(HttpStatus.BAD_REQUEST, "A008", "This account uses social login. Please login with the social provider."),
 
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "U001", "User not found"),

@@ -27,6 +27,14 @@ jwt:
   refresh-token-expiration: 604800000
   issuer: web3-community
 
+oauth:
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+  naver:
+    client-id: ${NAVER_CLIENT_ID:}
+    client-secret: ${NAVER_CLIENT_SECRET:}
+
 springdoc:
   api-docs:
     path: /api-docs

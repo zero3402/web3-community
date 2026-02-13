@@ -27,6 +27,12 @@ class AuthController(private val authService: AuthService) {
         return ApiResponse.success(authService.login(request), "Login successful")
     }
 
+    @Operation(summary = "소셜 로그인 (Google, Naver)")
+    @PostMapping("/oauth/login")
+    fun socialLogin(@Valid @RequestBody request: OAuthLoginRequest): ApiResponse<LoginResponse> {
+        return ApiResponse.success(authService.socialLogin(request), "Social login successful")
+    }
+
     @Operation(summary = "토큰 갱신")
     @PostMapping("/refresh")
     fun refresh(@Valid @RequestBody request: TokenRefreshRequest): ApiResponse<LoginResponse> {

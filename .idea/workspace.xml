@@ -6,8 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/service/AuthService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community/auth/service/AuthService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/user-service/src/main/resources/application.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -78,7 +76,7 @@
     "project.structure.last.edited": "Modules",
     "project.structure.proportion": "0.0",
     "project.structure.side.proportion": "0.0",
-    "spring.configuration.checksum": "155c2d8ea0b72cae3e15508f5d798c18",
+    "spring.configuration.checksum": "d39e495a1f0f4874fc889ad722850a64",
     "ts.external.directory.path": "/Applications/IntelliJ IDEA.app/Contents/plugins/javascript-impl/jsLanguageServicesImpl/external",
     "vue.rearranger.settings.migration": "true"
   }
@@ -159,6 +157,7 @@
       <workItem from="1770622099785" duration="1681000" />
       <workItem from="1770624208893" duration="1673000" />
       <workItem from="1770625916683" duration="4719000" />
+      <workItem from="1770945753496" duration="1378000" />
     </task>
     <servers />
   </component>

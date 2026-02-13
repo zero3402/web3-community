@@ -9,11 +9,20 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestTemplate
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties::class)
+@EnableConfigurationProperties(JwtProperties::class, OAuthProperties::class)
 class JwtConfig {
 
     @Bean
     fun jwtTokenProvider(properties: JwtProperties): JwtTokenProvider {
         return JwtTokenProvider(properties)
+    }
+
+    @Bean
+    fun restTemplate(): RestTemplate {
+        val factory = SimpleClientHttpRequestFactory().apply {
+            setConnectTimeout(5000)
+            setReadTimeout(5000)
+        }
+        return RestTemplate(factory)
     }
 }

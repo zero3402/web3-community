@@ -5,23 +5,20 @@ import com.web3.community.auth.dto.*
 import com.web3.community.auth.dto.user.CreateUserRequest
 import com.web3.community.auth.dto.user.UserResponse
 import com.web3.community.auth.entity.AuthCredential
+import com.web3.community.auth.entity.AuthProvider
 import com.web3.community.auth.entity.Role
 import com.web3.community.auth.repository.AuthCredentialRepository
-import com.web3.community.common.dto.ApiResponse
+import com.web3.community.auth.service.oauth.GoogleOAuthClient
+import com.web3.community.auth.service.oauth.NaverOAuthClient
+import com.web3.community.auth.service.oauth.OAuthUserInfo
 import com.web3.community.common.exception.BusinessException
 import com.web3.community.common.exception.ErrorCode
 import com.web3.community.common.jwt.JwtProperties
 import com.web3.community.common.jwt.JwtTokenProvider
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.http.HttpEntity
-import org.springframework.http.HttpHeaders
-import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.client.RestClientException
-import org.springframework.web.client.RestTemplate
 import java.time.LocalDateTime
 
 @Service
@@ -31,7 +28,9 @@ class AuthService(
         private val jwtTokenProvider: JwtTokenProvider,
         private val jwtProperties: JwtProperties,
         private val passwordEncoder: PasswordEncoder,
-        @Qualifier("com.web3.community.auth.client.UserClient") private val userClient: UserClient
+        @Qualifier("com.web3.community.auth.client.UserClient") private val userClient: UserClient,
+        private val googleOAuthClient: GoogleOAuthClient,
+        private val naverOAuthClient: NaverOAuthClient
 ) {
 
     @Transactional
@@ -46,7 +45,8 @@ class AuthService(
             email = request.email,
             password = passwordEncoder.encode(request.password),
             role = Role.USER,
-            userId = userProfile.id
+            userId = userProfile.id,
+            provider = AuthProvider.LOCAL
         )
         authCredentialRepository.save(credential)
 
@@ -57,12 +57,41 @@ class AuthService(
         val credential = authCredentialRepository.findByEmail(request.email)
             .orElseThrow { BusinessException(ErrorCode.INVALID_CREDENTIALS) }
 
+        if (credential.provider != AuthProvider.LOCAL) {
+            throw BusinessException(ErrorCode.SOCIAL_LOGIN_ONLY)
+        }
+
         if (!credential.enabled) {
             throw BusinessException(ErrorCode.UNAUTHORIZED)
         }
 
         if (!passwordEncoder.matches(request.password, credential.password)) {
             throw BusinessException(ErrorCode.INVALID_CREDENTIALS)
+        }
+
+        return generateLoginResponse(credential)
+    }
+
+    @Transactional
+    fun socialLogin(request: OAuthLoginRequest): LoginResponse {
+        val provider = try {
+            AuthProvider.valueOf(request.provider.uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw BusinessException(ErrorCode.INVALID_INPUT)
+        }
+
+        val userInfo = when (provider) {
+            AuthProvider.GOOGLE -> googleOAuthClient.getUserInfo(request.code, request.redirectUri)
+            AuthProvider.NAVER -> naverOAuthClient.getUserInfo(request.code, request.redirectUri)
+            AuthProvider.LOCAL -> throw BusinessException(ErrorCode.INVALID_INPUT)
+        }
+
+        val credential = authCredentialRepository
+            .findByProviderAndProviderId(userInfo.provider, userInfo.providerId)
+            .orElseGet { createSocialCredential(userInfo) }
+
+        if (!credential.enabled) {
+            throw BusinessException(ErrorCode.UNAUTHORIZED)
         }
 
         return generateLoginResponse(credential)
@@ -104,6 +133,10 @@ class AuthService(
     fun changePassword(userId: Long, request: PasswordChangeRequest) {
         val credential = authCredentialRepository.findByUserId(userId)
             .orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
+
+        if (credential.provider != AuthProvider.LOCAL) {
+            throw BusinessException(ErrorCode.SOCIAL_LOGIN_ONLY)
+        }
 
         if (!passwordEncoder.matches(request.currentPassword, credential.password)) {
             throw BusinessException(ErrorCode.INVALID_CREDENTIALS)
@@ -150,6 +183,20 @@ class AuthService(
             email = credential.email,
             role = credential.role.name
         )
+    }
+
+    private fun createSocialCredential(userInfo: OAuthUserInfo): AuthCredential {
+        val userProfile = createUserProfile(userInfo.email, userInfo.nickname)
+
+        val credential = AuthCredential(
+            email = userInfo.email,
+            password = null,
+            role = Role.USER,
+            userId = userProfile.id,
+            provider = userInfo.provider,
+            providerId = userInfo.providerId
+        )
+        return authCredentialRepository.save(credential)
     }
 
     private fun createUserProfile(email: String, nickname: String): UserResponse {
