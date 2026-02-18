@@ -10,13 +10,14 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.Sinks
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class CommentService(
     private val commentRepository: CommentRepository,
     private val commentEventService: CommentEventService
 ) {
-    private val commentSinks = mutableMapOf<String, Sinks.Many<CommentResponse>>()
+    private val commentSinks = ConcurrentHashMap<String, Sinks.Many<CommentResponse>>()
 
     fun createComment(userId: Long, nickname: String, request: CreateCommentRequest): Mono<CommentResponse> {
         val depth = if (request.parentId != null) {
@@ -78,10 +79,15 @@ class CommentService(
     }
 
     fun streamComments(postId: String): Flux<CommentResponse> {
-        val sink = commentSinks.getOrPut(postId) {
+        val sink = commentSinks.computeIfAbsent(postId) {
             Sinks.many().multicast().onBackpressureBuffer()
         }
         return sink.asFlux()
+            .doFinally {
+                if (sink.currentSubscriberCount() == 0) {
+                    commentSinks.remove(postId)
+                }
+            }
     }
 
     fun updateComment(id: String, userId: Long, request: UpdateCommentRequest): Mono<CommentResponse> {

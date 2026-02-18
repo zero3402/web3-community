@@ -84,7 +84,9 @@ class PostService(
             throw BusinessException(ErrorCode.FORBIDDEN)
         }
 
-        postRepository.delete(post)
+        post.published = false
+        post.updatedAt = LocalDateTime.now()
+        postRepository.save(post)
     }
 
     fun toggleLike(id: String, userId: Long): PostResponse {

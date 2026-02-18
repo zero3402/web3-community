@@ -11,6 +11,6 @@ import org.springframework.stereotype.Component
 @Component
 class UserFallback : UserClient {
     override fun createUserProfile(request: CreateUserRequest): ApiResponse<UserResponse> {
-        throw BusinessException(ErrorCode.SYSTEM_BUSY);
+        throw BusinessException(ErrorCode.SYSTEM_BUSY)
     }
 }

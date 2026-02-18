@@ -24,7 +24,7 @@ class JwtTokenProviderTest {
 
     @Test
     fun `should generate access token`() {
-        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER")
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "tester")
         assertNotNull(token)
         assertTrue(token.isNotBlank())
     }
@@ -38,7 +38,7 @@ class JwtTokenProviderTest {
 
     @Test
     fun `should validate valid token`() {
-        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER")
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "tester")
         assertTrue(jwtTokenProvider.validateToken(token))
     }
 
@@ -49,31 +49,37 @@ class JwtTokenProviderTest {
 
     @Test
     fun `should extract userId from token`() {
-        val token = jwtTokenProvider.generateAccessToken(42L, "test@test.com", "USER")
+        val token = jwtTokenProvider.generateAccessToken(42L, "test@test.com", "USER", "tester")
         assertEquals(42L, jwtTokenProvider.getUserIdFromToken(token))
     }
 
     @Test
     fun `should extract email from token`() {
-        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER")
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "tester")
         assertEquals("test@test.com", jwtTokenProvider.getEmailFromToken(token))
     }
 
     @Test
     fun `should extract role from token`() {
-        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "ADMIN")
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "ADMIN", "tester")
         assertEquals("ADMIN", jwtTokenProvider.getRoleFromToken(token))
     }
 
     @Test
+    fun `should extract nickname from token`() {
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "mynickname")
+        assertEquals("mynickname", jwtTokenProvider.getNicknameFromToken(token))
+    }
+
+    @Test
     fun `should return positive remaining expiration for fresh token`() {
-        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER")
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "tester")
         assertTrue(jwtTokenProvider.getRemainingExpiration(token) > 0)
     }
 
     @Test
     fun `should get expiration date from token`() {
-        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER")
+        val token = jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "tester")
         val expiration = jwtTokenProvider.getExpirationFromToken(token)
         assertNotNull(expiration)
         assertTrue(expiration.time > System.currentTimeMillis())

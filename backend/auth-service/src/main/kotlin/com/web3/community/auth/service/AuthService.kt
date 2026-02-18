@@ -15,7 +15,6 @@ import com.web3.community.common.exception.BusinessException
 import com.web3.community.common.exception.ErrorCode
 import com.web3.community.common.jwt.JwtProperties
 import com.web3.community.common.jwt.JwtTokenProvider
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,7 +27,7 @@ class AuthService(
         private val jwtTokenProvider: JwtTokenProvider,
         private val jwtProperties: JwtProperties,
         private val passwordEncoder: PasswordEncoder,
-        @Qualifier("com.web3.community.auth.client.UserClient") private val userClient: UserClient,
+        private val userClient: UserClient,
         private val googleOAuthClient: GoogleOAuthClient,
         private val naverOAuthClient: NaverOAuthClient
 ) {
@@ -43,6 +42,7 @@ class AuthService(
 
         val credential = AuthCredential(
             email = request.email,
+            nickname = userProfile.nickname,
             password = passwordEncoder.encode(request.password),
             role = Role.USER,
             userId = userProfile.id,
@@ -167,7 +167,7 @@ class AuthService(
 
     private fun generateLoginResponse(credential: AuthCredential): LoginResponse {
         val accessToken = jwtTokenProvider.generateAccessToken(
-            credential.userId, credential.email, credential.role.name
+            credential.userId, credential.email, credential.role.name, credential.nickname
         )
         val refreshToken = jwtTokenProvider.generateRefreshToken(credential.userId)
 
@@ -190,6 +190,7 @@ class AuthService(
 
         val credential = AuthCredential(
             email = userInfo.email,
+            nickname = userProfile.nickname,
             password = null,
             role = Role.USER,
             userId = userProfile.id,

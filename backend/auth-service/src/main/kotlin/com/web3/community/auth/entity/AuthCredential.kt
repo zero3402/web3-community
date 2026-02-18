@@ -13,6 +13,9 @@ data class AuthCredential(
         @Column(unique = true, nullable = false, length = 100)
         val email: String,
 
+        @Column(nullable = false, length = 50)
+        var nickname: String,
+
         @Column(nullable = true)
         var password: String? = null,
 

@@ -11,11 +11,12 @@ class JwtTokenProvider(private val properties: JwtProperties) {
         Base64.getDecoder().decode(properties.secret)
     )
 
-    fun generateAccessToken(userId: Long, email: String, role: String): String {
+    fun generateAccessToken(userId: Long, email: String, role: String, nickname: String): String {
         val claims = mapOf(
             "userId" to userId,
             "email" to email,
-            "role" to role
+            "role" to role,
+            "nickname" to nickname
         )
         return buildToken(claims, userId.toString(), properties.accessTokenExpiration)
     }
@@ -45,6 +46,10 @@ class JwtTokenProvider(private val properties: JwtProperties) {
 
     fun getRoleFromToken(token: String): String {
         return parseClaims(token)["role"] as String
+    }
+
+    fun getNicknameFromToken(token: String): String {
+        return parseClaims(token)["nickname"] as? String ?: ""
     }
 
     fun getExpirationFromToken(token: String): Date {

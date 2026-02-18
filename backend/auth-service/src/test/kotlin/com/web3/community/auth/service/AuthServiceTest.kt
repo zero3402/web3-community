@@ -57,6 +57,7 @@ class AuthServiceTest {
     private val testCredential = AuthCredential(
         id = 1L,
         email = "test@test.com",
+        nickname = "tester",
         password = "encodedPassword",
         role = Role.USER,
         userId = 1L,
@@ -79,7 +80,7 @@ class AuthServiceTest {
     fun `login should return tokens for valid credentials`() {
         every { authCredentialRepository.findByEmail("test@test.com") } returns Optional.of(testCredential)
         every { passwordEncoder.matches("password", "encodedPassword") } returns true
-        every { jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER") } returns "access-token"
+        every { jwtTokenProvider.generateAccessToken(1L, "test@test.com", "USER", "tester") } returns "access-token"
         every { jwtTokenProvider.generateRefreshToken(1L) } returns "refresh-token"
         every { refreshTokenService.saveRefreshToken(1L, "refresh-token", 604800000L) } just runs
 
@@ -220,7 +221,7 @@ class AuthServiceTest {
             nickname = "Google User"
         )
         val newCredential = AuthCredential(
-            id = 2L, email = "google@gmail.com", password = null,
+            id = 2L, email = "google@gmail.com", nickname = "Google User", password = null,
             role = Role.USER, userId = 2L, provider = AuthProvider.GOOGLE, providerId = "google-123"
         )
 
@@ -229,7 +230,7 @@ class AuthServiceTest {
         every { userClient.createUserProfile(CreateUserRequest("google@gmail.com", "Google User")) } returns
                 ApiResponse.success(UserResponse(2L, "Google User", "google@gmail.com", null, null, "USER", LocalDateTime.now()))
         every { authCredentialRepository.save(any()) } returns newCredential
-        every { jwtTokenProvider.generateAccessToken(2L, "google@gmail.com", "USER") } returns "access-token"
+        every { jwtTokenProvider.generateAccessToken(2L, "google@gmail.com", "USER", "Google User") } returns "access-token"
         every { jwtTokenProvider.generateRefreshToken(2L) } returns "refresh-token"
         every { refreshTokenService.saveRefreshToken(2L, "refresh-token", 604800000L) } just runs
 
@@ -245,7 +246,7 @@ class AuthServiceTest {
     @Test
     fun `socialLogin should return tokens for existing Google user`() {
         val existingCredential = AuthCredential(
-            id = 2L, email = "google@gmail.com", password = null,
+            id = 2L, email = "google@gmail.com", nickname = "Google User", password = null,
             role = Role.USER, userId = 2L, provider = AuthProvider.GOOGLE, providerId = "google-123"
         )
         val oAuthUserInfo = OAuthUserInfo(
@@ -257,7 +258,7 @@ class AuthServiceTest {
 
         every { googleOAuthClient.getUserInfo("auth-code", "http://localhost:5173/callback") } returns oAuthUserInfo
         every { authCredentialRepository.findByProviderAndProviderId(AuthProvider.GOOGLE, "google-123") } returns Optional.of(existingCredential)
-        every { jwtTokenProvider.generateAccessToken(2L, "google@gmail.com", "USER") } returns "access-token"
+        every { jwtTokenProvider.generateAccessToken(2L, "google@gmail.com", "USER", "Google User") } returns "access-token"
         every { jwtTokenProvider.generateRefreshToken(2L) } returns "refresh-token"
         every { refreshTokenService.saveRefreshToken(2L, "refresh-token", 604800000L) } just runs
 
@@ -278,7 +279,7 @@ class AuthServiceTest {
             nickname = "Naver User"
         )
         val newCredential = AuthCredential(
-            id = 3L, email = "naver@naver.com", password = null,
+            id = 3L, email = "naver@naver.com", nickname = "Naver User", password = null,
             role = Role.USER, userId = 3L, provider = AuthProvider.NAVER, providerId = "naver-456"
         )
 
@@ -287,7 +288,7 @@ class AuthServiceTest {
         every { userClient.createUserProfile(CreateUserRequest("naver@naver.com", "Naver User")) } returns
                 ApiResponse.success(UserResponse(3L, "Naver User", "naver@naver.com", null, null, "USER", LocalDateTime.now()))
         every { authCredentialRepository.save(any()) } returns newCredential
-        every { jwtTokenProvider.generateAccessToken(3L, "naver@naver.com", "USER") } returns "access-token"
+        every { jwtTokenProvider.generateAccessToken(3L, "naver@naver.com", "USER", "Naver User") } returns "access-token"
         every { jwtTokenProvider.generateRefreshToken(3L) } returns "refresh-token"
         every { refreshTokenService.saveRefreshToken(3L, "refresh-token", 604800000L) } just runs
 

@@ -34,11 +34,13 @@ class JwtAuthGatewayFilterFactory(
             val userId = jwtTokenProvider.getUserIdFromToken(token)
             val email = jwtTokenProvider.getEmailFromToken(token)
             val role = jwtTokenProvider.getRoleFromToken(token)
+            val nickname = jwtTokenProvider.getNicknameFromToken(token)
 
             val modifiedRequest = request.mutate()
                 .header(AppConstants.USER_ID_HEADER, userId.toString())
                 .header(AppConstants.USER_EMAIL_HEADER, email)
                 .header(AppConstants.USER_ROLE_HEADER, role)
+                .header(AppConstants.USER_NICKNAME_HEADER, nickname)
                 .build()
 
             chain.filter(exchange.mutate().request(modifiedRequest).build())
