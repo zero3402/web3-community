@@ -31,20 +31,20 @@ class CommentController(private val commentService: CommentService) {
 
     @Operation(summary = "게시글별 댓글 조회")
     @GetMapping("/post/{postId}")
-    fun getCommentsByPostId(@PathVariable postId: String): Flux<CommentResponse> {
+    fun getCommentsByPostId(@PathVariable postId: Long): Flux<CommentResponse> {
         return commentService.getCommentsByPostId(postId)
     }
 
     @Operation(summary = "댓글 실시간 스트리밍 (SSE)")
     @GetMapping("/post/{postId}/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun streamComments(@PathVariable postId: String): Flux<CommentResponse> {
+    fun streamComments(@PathVariable postId: Long): Flux<CommentResponse> {
         return commentService.streamComments(postId)
     }
 
     @Operation(summary = "댓글 수정")
     @PutMapping("/{id}")
     fun updateComment(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @RequestHeader("X-User-Id") userId: Long,
         @Valid @RequestBody request: UpdateCommentRequest
     ): Mono<CommentResponse> {
@@ -55,7 +55,7 @@ class CommentController(private val commentService: CommentService) {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteComment(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @RequestHeader("X-User-Id") userId: Long
     ): Mono<Void> {
         return commentService.deleteComment(id, userId)
@@ -64,7 +64,7 @@ class CommentController(private val commentService: CommentService) {
     @Operation(summary = "좋아요 토글")
     @PostMapping("/{id}/like")
     fun toggleLike(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @RequestHeader("X-User-Id") userId: Long
     ): Mono<CommentResponse> {
         return commentService.toggleLike(id, userId)
@@ -72,7 +72,7 @@ class CommentController(private val commentService: CommentService) {
 
     @Operation(summary = "댓글 수 조회")
     @GetMapping("/post/{postId}/count")
-    fun getCommentCount(@PathVariable postId: String): Mono<Long> {
+    fun getCommentCount(@PathVariable postId: Long): Mono<Long> {
         return commentService.getCommentCount(postId)
     }
 }

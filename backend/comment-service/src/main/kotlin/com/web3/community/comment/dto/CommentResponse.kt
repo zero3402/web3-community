@@ -1,12 +1,12 @@
 package com.web3.community.comment.dto
 
-import com.web3.community.comment.document.Comment
+import com.web3.community.comment.entity.Comment
 import java.time.LocalDateTime
 
 data class CommentResponse(
-    val id: String,
-    val postId: String,
-    val parentId: String?,
+    val id: Long,
+    val postId: Long,
+    val parentId: Long?,
     val depth: Int,
     val authorId: Long,
     val authorNickname: String,

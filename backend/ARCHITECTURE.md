@@ -37,7 +37,7 @@ Web3 커뮤니티 플랫폼의 백엔드 API 서버로, 사용자 인증·게시
 **기술 이질성 허용**
 - `comment-service`만 WebFlux(Reactive)를 사용해 SSE 스트리밍을 구현하고,
   나머지 서비스는 익숙한 Spring MVC 사용
-- 서비스별로 최적의 DB를 선택: MySQL(관계형 데이터) vs MongoDB(유연한 스키마)
+- MySQL을 모든 서비스에 통일하여 운영 복잡도 감소
 
 **장애 격리**
 - 댓글 서비스 장애가 게시글 조회에 영향을 미치지 않음
@@ -66,7 +66,7 @@ Web3 커뮤니티 플랫폼의 백엔드 API 서버로, 사용자 인증·게시
 ┌─────────────┐  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐
 │ auth-service│  │ user-service│  │ post-service │  │ comment-service │
 │   (8081)    │  │   (8082)    │  │   (8084)     │  │    (8083)       │
-│  MySQL+Redis│  │    MySQL    │  │   MongoDB    │  │ MongoDB+Kafka   │
+│  MySQL+Redis│  │    MySQL    │  │    MySQL     │  │  MySQL+Kafka    │
 └─────────────┘  └─────────────┘  └──────────────┘  └─────────────────┘
       │                │                                     │
       │ (Feign 호출)   │                                     ▼
@@ -85,8 +85,8 @@ Web3 커뮤니티 플랫폼의 백엔드 API 서버로, 사용자 인증·게시
 | `api-gateway-service` | 8080 | Redis | JWT 필터, Rate Limiting, Circuit Breaker |
 | `auth-service` | 8081 | MySQL + Redis | 인증, OAuth2, 토큰 관리 |
 | `user-service` | 8082 | MySQL | 사용자 프로필 CRUD |
-| `post-service` | 8084 | MongoDB | 게시글, 카테고리 CRUD |
-| `comment-service` | 8083 | MongoDB + Kafka | 댓글 CRUD, SSE 스트리밍 |
+| `post-service` | 8084 | MySQL | 게시글, 카테고리 CRUD |
+| `comment-service` | 8083 | MySQL + Kafka | 댓글 CRUD, SSE 스트리밍 |
 
 ---
 
@@ -124,7 +124,7 @@ api-gateway-service/
 │   ├── GatewayConfig.kt        # JwtTokenProvider Bean 등록
 │   └── RateLimiterConfig.kt    # IP 기반 Rate Limiter Key Resolver
 ├── controller/FallbackController.kt  # Circuit Breaker 폴백 응답
-└── filter/JwtAuthGatewayFilterFactory.kt  # JWT 검증 + 사용자 정보 헤더 추입
+└── filter/JwtAuthGatewayFilterFactory.kt  # JWT 검증 + 사용자 정보 헤더 주입
 ```
 
 **라우팅 규칙**:
@@ -202,9 +202,9 @@ post-service/
 ├── controller/
 │   ├── PostController.kt       # 게시글 API
 │   └── CategoryController.kt  # 카테고리 API
-├── document/
-│   ├── Post.kt                # MongoDB Document
-│   └── Category.kt            # MongoDB Document
+├── entity/
+│   ├── Post.kt                # JPA Entity (posts 테이블)
+│   └── Category.kt            # JPA Entity (categories 테이블)
 └── service/
     ├── PostService.kt         # 게시글 비즈니스 로직
     └── CategoryService.kt     # 카테고리 비즈니스 로직
@@ -215,7 +215,8 @@ post-service/
 **기능**:
 - 카테고리별, 태그별, 키워드 검색
 - 조회수(`viewCount`) 증가
-- 좋아요 토글 (`likedUserIds` Set으로 중복 방지)
+- 좋아요 토글 (`post_likes` 테이블로 중복 방지)
+- 태그는 `post_tags` 별도 테이블로 관리 (`@ElementCollection`)
 
 ---
 
@@ -226,18 +227,26 @@ post-service/
 ```
 comment-service/
 ├── controller/CommentController.kt  # REST + SSE 엔드포인트
-├── document/Comment.kt             # MongoDB Document
+├── entity/
+│   ├── Comment.kt             # R2DBC Entity (comments 테이블)
+│   └── CommentLike.kt         # R2DBC Entity (comment_likes 테이블)
+├── repository/
+│   ├── CommentRepository.kt   # Reactive CRUD Repository
+│   └── CommentLikeRepository.kt  # 좋아요 전용 Repository
 ├── service/
-│   ├── CommentService.kt          # Reactive 비즈니스 로직 + SSE Sink 관리
-│   └── CommentEventService.kt     # Kafka 이벤트 발행
-└── dto/CommentEvent.kt            # Kafka 메시지 형식
+│   ├── CommentService.kt      # Reactive 비즈니스 로직 + SSE Sink 관리
+│   └── CommentEventService.kt # Kafka 이벤트 발행
+└── dto/CommentEvent.kt        # Kafka 메시지 형식
 ```
 
 **Reactive 선택 이유**: SSE를 위해 WebFlux 채택. `Sinks.Many<CommentResponse>`로 실시간 댓글 스트리밍.
+R2DBC(Reactive Relational Database Connectivity)로 MySQL에 논블로킹 방식으로 접근.
 
 **Soft Delete**: `comment.deleted = true` + 내용을 "This comment has been deleted."로 대체. 응답에서는 삭제된 댓글도 구조 유지 (트리 구조 보존).
 
 **댓글 트리 구조**: `parentId`로 대댓글 구현. 조회 시 루트 댓글과 자식을 in-memory에서 조립.
+
+**좋아요 토글**: `comment_likes` 테이블에서 (commentId, userId) 쌍 존재 여부로 중복 방지.
 
 ---
 
@@ -259,23 +268,33 @@ comment-service/
 - Spring Cloud CircuitBreaker (Resilience4j): 장애 격리 표준화
 - Spring Security: 유연한 인증/인가 체계
 
-### 5.3 MySQL (Auth Service, User Service)
+### 5.3 MySQL (모든 서비스)
 
 **선택 이유**:
 - **Auth Service**: 인증 정보(이메일, 비밀번호, Provider)는 엄격한 무결성 필요 → RDBMS 적합
-- **User Service**: 사용자 프로필은 정형화된 스키마, 복잡한 쿼리 없음
-- JPA + Hibernate로 ORM 지원
-- 트랜잭션 보장이 중요한 회원가입 로직
+- **User Service**: 사용자 프로필은 정형화된 스키마
+- **Post Service**: 게시글/카테고리의 관계형 데이터 (categoryId FK 참조), 트랜잭션 보장
+- **Comment Service**: 댓글-좋아요 관계, 외래 키 제약으로 데이터 무결성 유지
+- 단일 DB 엔진으로 운영 복잡도 감소 (모니터링, 백업, 스케일링 통일)
+- JPA + Hibernate(post, auth, user) 또는 R2DBC(comment)로 ORM 지원
 
-### 5.4 MongoDB (Post Service, Comment Service)
+### 5.4 Spring Data JPA (Post Service, Auth Service, User Service)
 
 **선택 이유**:
-- **Post Service**: 게시글은 태그(배열), 좋아요 목록(Set) 등 유연한 스키마 필요
-- **Comment Service**: 댓글 이벤트, 동적 구조에 적합
-- 자유로운 스키마 진화 (새 필드 추가 시 마이그레이션 불필요)
-- `Spring Data MongoDB Reactive`로 WebFlux와 통합
+- 선언적 쿼리 메서드로 생산성 향상
+- `@ElementCollection`으로 태그·좋아요 컬렉션을 별도 테이블로 관리
+- `ddl-auto: update`로 로컬 개발 시 스키마 자동 생성
+- 트랜잭션 관리 (`@Transactional`) 자연스러운 통합
 
-### 5.5 Redis
+### 5.5 Spring Data R2DBC (Comment Service)
+
+**선택 이유**:
+- WebFlux(비동기)와 짝을 이루는 논블로킹 DB 드라이버
+- 수천 개의 SSE 연결을 적은 스레드로 처리 (논블로킹 I/O)
+- `ReactiveCrudRepository`로 `Flux`/`Mono` 기반 쿼리
+- `io.asyncer:r2dbc-mysql` 드라이버로 MySQL 8.x 연동
+
+### 5.6 Redis
 
 **두 가지 용도로 활용**:
 
@@ -289,7 +308,7 @@ comment-service/
    - IP 기반 요청 제한: 초당 10회, 최대 버스트 20회
    - 분산 환경에서 인스턴스 간 공유 카운터 유지
 
-### 5.6 Apache Kafka (Comment Service)
+### 5.7 Apache Kafka (Comment Service)
 
 **선택 이유**:
 - 댓글 생성 이벤트를 비동기로 발행 (게시글 서비스의 댓글 수 업데이트 등)
@@ -301,7 +320,7 @@ comment-service/
 - `comment-events`: 댓글 생성/수정/삭제 이벤트
 - 파티션 키: `postId` (같은 게시글의 댓글 이벤트는 순서 보장)
 
-### 5.7 WebFlux (Comment Service만 Reactive)
+### 5.8 WebFlux (Comment Service만 Reactive)
 
 **선택 이유**:
 - SSE(Server-Sent Events) 구현: 클라이언트에 실시간 댓글 푸시
@@ -313,7 +332,7 @@ comment-service/
 - Reactive 스타일의 학습 곡선을 필요한 서비스에만 적용
 - 팀 생산성 고려
 
-### 5.8 Resilience4j (Circuit Breaker)
+### 5.9 Resilience4j (Circuit Breaker)
 
 **선택 이유**:
 - `post-service`는 Gateway에서 Circuit Breaker 적용 (슬라이딩 윈도우: 10회, 실패율 50% 초과 시 Open)
@@ -321,7 +340,7 @@ comment-service/
 - Open 상태 시 폴백 응답으로 사용자 경험 유지
 - Resilience4j는 Spring Boot 3.x 공식 지원, Hystrix 대체
 
-### 5.9 JWT (JSON Web Token)
+### 5.10 JWT (JSON Web Token)
 
 **선택 이유**:
 - **Stateless 인증**: 서버 세션 없이 토큰 자체에 사용자 정보 포함
@@ -343,7 +362,7 @@ comment-service/
 }
 ```
 
-### 5.10 Spring Cloud OpenFeign
+### 5.11 Spring Cloud OpenFeign
 
 **선택 이유**:
 - auth-service → user-service 호출 시 선언적 HTTP 클라이언트
@@ -351,7 +370,7 @@ comment-service/
 - Circuit Breaker와 자동 통합 (`spring.cloud.openfeign.circuitbreaker.enabled: true`)
 - 폴백(Fallback) 클래스로 Circuit Open 시 대체 로직 정의
 
-### 5.11 springdoc-openapi 2.3.0
+### 5.12 springdoc-openapi 2.3.0
 
 **선택 이유**:
 - Spring Boot 3.x 지원 (springfox는 지원 안 함)
@@ -460,52 +479,83 @@ CREATE TABLE users (
 );
 ```
 
-### 7.3 MongoDB - posts
+### 7.3 MySQL - posts (JPA @Entity)
 
-```json
-{
-  "_id": "ObjectId",
-  "title": "게시글 제목",
-  "content": "내용",
-  "authorId": 1,
-  "authorNickname": "홍길동",
-  "categoryId": "ObjectId",
-  "categoryName": "자유게시판",
-  "tags": ["web3", "blockchain"],
-  "viewCount": 100,
-  "likeCount": 10,
-  "commentCount": 5,
-  "likedUserIds": [1, 2, 3],
-  "published": true,
-  "createdAt": "2026-01-01T00:00:00",
-  "updatedAt": "2026-01-01T00:00:00"
-}
+```sql
+CREATE TABLE posts (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    title           VARCHAR(200) NOT NULL,
+    content         TEXT NOT NULL,
+    author_id       BIGINT NOT NULL,
+    author_nickname VARCHAR(100) NOT NULL,
+    category_id     BIGINT NOT NULL,
+    category_name   VARCHAR(100) NOT NULL,
+    view_count      BIGINT NOT NULL DEFAULT 0,
+    like_count      BIGINT NOT NULL DEFAULT 0,
+    comment_count   BIGINT NOT NULL DEFAULT 0,
+    published       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      DATETIME NOT NULL,
+    updated_at      DATETIME NOT NULL
+);
+
+-- 태그 (@ElementCollection)
+CREATE TABLE post_tags (
+    post_id BIGINT NOT NULL,
+    tag     VARCHAR(100) NOT NULL
+);
+
+-- 좋아요 사용자 목록 (@ElementCollection)
+CREATE TABLE post_likes (
+    post_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL
+);
 ```
 
-> **Soft Delete**: `published: false`로 처리. 삭제된 게시글은 조회 쿼리에서 제외.
+> **Soft Delete**: `published = false`로 처리. 삭제된 게시글은 조회 쿼리에서 제외.
 
-### 7.4 MongoDB - comments
+### 7.4 MySQL - categories (JPA @Entity)
 
-```json
-{
-  "_id": "ObjectId",
-  "postId": "게시글 ID",
-  "parentId": null,
-  "depth": 0,
-  "authorId": 1,
-  "authorNickname": "홍길동",
-  "content": "댓글 내용",
-  "likeCount": 3,
-  "likedUserIds": [1, 2],
-  "deleted": false,
-  "createdAt": "2026-01-01T00:00:00",
-  "updatedAt": "2026-01-01T00:00:00"
-}
+```sql
+CREATE TABLE categories (
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name          VARCHAR(100) NOT NULL,
+    description   VARCHAR(500),
+    display_order INT NOT NULL DEFAULT 0,
+    active        BOOLEAN NOT NULL DEFAULT TRUE
+);
 ```
 
-> **Soft Delete**: `deleted: true`로 처리. 응답 시 작성자는 "Deleted", 내용은 "This comment has been deleted."로 표시.
+### 7.5 MySQL - comments (R2DBC @Table)
 
-### 7.5 Redis 키 구조
+```sql
+CREATE TABLE comments (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    post_id         BIGINT NOT NULL,
+    parent_id       BIGINT,
+    depth           INT NOT NULL DEFAULT 0,
+    author_id       BIGINT NOT NULL,
+    author_nickname VARCHAR(100) NOT NULL,
+    content         TEXT NOT NULL,
+    like_count      BIGINT NOT NULL DEFAULT 0,
+    deleted         BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      DATETIME NOT NULL,
+    updated_at      DATETIME NOT NULL,
+    INDEX idx_comments_post_id (post_id),
+    INDEX idx_comments_created_at (created_at)
+);
+
+-- 좋아요 추적 (R2DBC @Table)
+CREATE TABLE comment_likes (
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    comment_id BIGINT NOT NULL,
+    user_id    BIGINT NOT NULL,
+    UNIQUE KEY uk_comment_likes (comment_id, user_id)
+);
+```
+
+> **Soft Delete**: `deleted = true`로 처리. 응답 시 작성자는 "Deleted", 내용은 "This comment has been deleted."로 표시.
+
+### 7.6 Redis 키 구조
 
 ```
 refresh_token:{userId}     → Refresh Token 문자열 (TTL: 7일)
@@ -538,7 +588,7 @@ rate_limit:request_count   → Redis RequestRateLimiter 내부 키
 
 ### 8.3 SSE 연결 관리
 
-- `commentSinks: ConcurrentHashMap<postId, Sinks.Many>`
+- `commentSinks: ConcurrentHashMap<Long, Sinks.Many>`
 - 구독자가 연결 해제 시 (`doFinally`) 구독자 수 확인 후 Sink 제거
 - ConcurrentHashMap으로 멀티스레드 안전
 
@@ -549,8 +599,8 @@ rate_limit:request_count   → Redis RequestRateLimiter 내부 키
 
 ### 8.5 환경별 프로파일
 
-| 프로파일 | DDL | 로깅 | 비고 |
-|---------|-----|------|------|
-| `local` | update | DEBUG | 로컬 개발 (기본) |
-| `dev` | validate | INFO | 개발 서버, 환경변수 기반 |
-| `prod` | validate | WARN | 운영 서버, 환경변수 필수 |
+| 프로파일 | DDL (JPA) | 스키마 초기화 (R2DBC) | 로깅 | 비고 |
+|---------|-----------|----------------------|------|------|
+| `local` | update | mode: always | DEBUG | 로컬 개발 (기본) |
+| `dev` | validate | mode: never | INFO | 개발 서버, 환경변수 기반 |
+| `prod` | validate | mode: never | WARN | 운영 서버, 환경변수 필수 |

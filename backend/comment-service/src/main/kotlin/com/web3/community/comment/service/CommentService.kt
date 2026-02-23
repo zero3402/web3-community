@@ -1,7 +1,9 @@
 package com.web3.community.comment.service
 
-import com.web3.community.comment.document.Comment
+import com.web3.community.comment.entity.Comment
+import com.web3.community.comment.entity.CommentLike
 import com.web3.community.comment.dto.*
+import com.web3.community.comment.repository.CommentLikeRepository
 import com.web3.community.comment.repository.CommentRepository
 import com.web3.community.common.exception.BusinessException
 import com.web3.community.common.exception.ErrorCode
@@ -15,9 +17,10 @@ import java.util.concurrent.ConcurrentHashMap
 @Service
 class CommentService(
     private val commentRepository: CommentRepository,
+    private val commentLikeRepository: CommentLikeRepository,
     private val commentEventService: CommentEventService
 ) {
-    private val commentSinks = ConcurrentHashMap<String, Sinks.Many<CommentResponse>>()
+    private val commentSinks = ConcurrentHashMap<Long, Sinks.Many<CommentResponse>>()
 
     fun createComment(userId: Long, nickname: String, request: CreateCommentRequest): Mono<CommentResponse> {
         val depth = if (request.parentId != null) {
@@ -58,7 +61,7 @@ class CommentService(
         }
     }
 
-    fun getCommentsByPostId(postId: String): Flux<CommentResponse> {
+    fun getCommentsByPostId(postId: Long): Flux<CommentResponse> {
         return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
             .map { CommentResponse.from(it) }
             .collectList()
@@ -78,7 +81,7 @@ class CommentService(
             }
     }
 
-    fun streamComments(postId: String): Flux<CommentResponse> {
+    fun streamComments(postId: Long): Flux<CommentResponse> {
         val sink = commentSinks.computeIfAbsent(postId) {
             Sinks.many().multicast().onBackpressureBuffer()
         }
@@ -90,7 +93,7 @@ class CommentService(
             }
     }
 
-    fun updateComment(id: String, userId: Long, request: UpdateCommentRequest): Mono<CommentResponse> {
+    fun updateComment(id: Long, userId: Long, request: UpdateCommentRequest): Mono<CommentResponse> {
         return commentRepository.findById(id)
             .switchIfEmpty(Mono.error(BusinessException(ErrorCode.COMMENT_NOT_FOUND)))
             .flatMap { comment ->
@@ -104,7 +107,7 @@ class CommentService(
             .map { CommentResponse.from(it) }
     }
 
-    fun deleteComment(id: String, userId: Long): Mono<Void> {
+    fun deleteComment(id: Long, userId: Long): Mono<Void> {
         return commentRepository.findById(id)
             .switchIfEmpty(Mono.error(BusinessException(ErrorCode.COMMENT_NOT_FOUND)))
             .flatMap { comment ->
@@ -119,23 +122,30 @@ class CommentService(
             .then()
     }
 
-    fun toggleLike(id: String, userId: Long): Mono<CommentResponse> {
+    fun toggleLike(id: Long, userId: Long): Mono<CommentResponse> {
         return commentRepository.findById(id)
             .switchIfEmpty(Mono.error(BusinessException(ErrorCode.COMMENT_NOT_FOUND)))
             .flatMap { comment ->
-                if (comment.likedUserIds.contains(userId)) {
-                    comment.likedUserIds.remove(userId)
-                    comment.likeCount--
-                } else {
-                    comment.likedUserIds.add(userId)
-                    comment.likeCount++
-                }
+                commentLikeRepository.findByCommentIdAndUserId(id, userId)
+                    .flatMap { _ ->
+                        commentLikeRepository.deleteByCommentIdAndUserId(id, userId)
+                            .then(Mono.fromCallable { comment.apply { likeCount-- } })
+                    }
+                    .switchIfEmpty(
+                        Mono.defer {
+                            commentLikeRepository.save(CommentLike(commentId = id, userId = userId))
+                                .then(Mono.fromCallable { comment.apply { likeCount++ } })
+                        }
+                    )
+            }
+            .flatMap { comment ->
+                comment.updatedAt = LocalDateTime.now()
                 commentRepository.save(comment)
             }
             .map { CommentResponse.from(it) }
     }
 
-    fun getCommentCount(postId: String): Mono<Long> {
+    fun getCommentCount(postId: Long): Mono<Long> {
         return commentRepository.countByPostIdAndDeletedFalse(postId)
     }
 }

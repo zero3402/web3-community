@@ -31,7 +31,7 @@ class CategoryController(private val categoryService: CategoryService) {
     @Operation(summary = "카테고리 수정")
     @PutMapping("/{id}")
     fun updateCategory(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @Valid @RequestBody request: CategoryRequest
     ): ApiResponse<CategoryResponse> {
         return ApiResponse.success(categoryService.updateCategory(id, request))
@@ -40,7 +40,7 @@ class CategoryController(private val categoryService: CategoryService) {
     @Operation(summary = "카테고리 삭제")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun deleteCategory(@PathVariable id: String) {
+    fun deleteCategory(@PathVariable id: Long) {
         categoryService.deleteCategory(id)
     }
 }

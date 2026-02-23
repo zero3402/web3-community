@@ -1,5 +1,6 @@
 package com.web3.community.post.dto
 
+import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
 
 data class UpdatePostRequest(
@@ -8,7 +9,8 @@ data class UpdatePostRequest(
 
     val content: String? = null,
 
-    val categoryId: String? = null,
+    @field:Positive(message = "Category ID must be positive")
+    val categoryId: Long? = null,
 
     val tags: List<String>? = null
 )

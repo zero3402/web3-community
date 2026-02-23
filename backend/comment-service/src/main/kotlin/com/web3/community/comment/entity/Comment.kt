@@ -1,19 +1,16 @@
-package com.web3.community.comment.document
+package com.web3.community.comment.entity
 
 import org.springframework.data.annotation.Id
-import org.springframework.data.mongodb.core.index.Indexed
-import org.springframework.data.mongodb.core.mapping.Document
+import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDateTime
 
-@Document(collection = "comments")
+@Table("comments")
 data class Comment(
     @Id
-    val id: String? = null,
+    val id: Long? = null,
 
-    @Indexed
-    val postId: String,
-
-    val parentId: String? = null,
+    val postId: Long,
+    val parentId: Long? = null,
     val depth: Int = 0,
 
     val authorId: Long,
@@ -22,10 +19,8 @@ data class Comment(
     var content: String,
 
     var likeCount: Long = 0,
-    val likedUserIds: MutableSet<Long> = mutableSetOf(),
     var deleted: Boolean = false,
 
-    @Indexed
     val createdAt: LocalDateTime = LocalDateTime.now(),
     var updatedAt: LocalDateTime = LocalDateTime.now()
 )

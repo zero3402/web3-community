@@ -32,7 +32,7 @@ class PostController(private val postService: PostService) {
     @Operation(summary = "게시글 목록 조회")
     @GetMapping
     fun getPosts(
-        @RequestParam(required = false) categoryId: String?,
+        @RequestParam(required = false) categoryId: Long?,
         @RequestParam(required = false) tag: String?,
         @RequestParam(required = false) keyword: String?,
         @PageableDefault(size = 20) pageable: Pageable
@@ -42,14 +42,14 @@ class PostController(private val postService: PostService) {
 
     @Operation(summary = "게시글 상세 조회")
     @GetMapping("/{id}")
-    fun getPostById(@PathVariable id: String): ApiResponse<PostResponse> {
+    fun getPostById(@PathVariable id: Long): ApiResponse<PostResponse> {
         return ApiResponse.success(postService.getPostById(id))
     }
 
     @Operation(summary = "게시글 수정")
     @PutMapping("/{id}")
     fun updatePost(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @RequestHeader("X-User-Id") userId: Long,
         @Valid @RequestBody request: UpdatePostRequest
     ): ApiResponse<PostResponse> {
@@ -60,7 +60,7 @@ class PostController(private val postService: PostService) {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deletePost(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @RequestHeader("X-User-Id") userId: Long,
         @RequestHeader("X-User-Role") role: String
     ) {
@@ -70,7 +70,7 @@ class PostController(private val postService: PostService) {
     @Operation(summary = "좋아요 토글")
     @PostMapping("/{id}/like")
     fun toggleLike(
-        @PathVariable id: String,
+        @PathVariable id: Long,
         @RequestHeader("X-User-Id") userId: Long
     ): ApiResponse<PostResponse> {
         return ApiResponse.success(postService.toggleLike(id, userId))

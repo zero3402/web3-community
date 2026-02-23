@@ -1,8 +1,8 @@
 package com.web3.community.post.repository
 
-import com.web3.community.post.document.Category
-import org.springframework.data.mongodb.repository.MongoRepository
+import com.web3.community.post.entity.Category
+import org.springframework.data.jpa.repository.JpaRepository
 
-interface CategoryRepository : MongoRepository<Category, String> {
+interface CategoryRepository : JpaRepository<Category, Long> {
     fun findByActiveTrueOrderByDisplayOrderAsc(): List<Category>
 }

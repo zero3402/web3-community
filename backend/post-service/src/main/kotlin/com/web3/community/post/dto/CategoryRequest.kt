@@ -1,6 +1,6 @@
 package com.web3.community.post.dto
 
-import com.web3.community.post.document.Category
+import com.web3.community.post.entity.Category
 import jakarta.validation.constraints.NotBlank
 
 data class CategoryRequest(
@@ -11,7 +11,7 @@ data class CategoryRequest(
 )
 
 data class CategoryResponse(
-    val id: String,
+    val id: Long,
     val name: String,
     val description: String?,
     val displayOrder: Int
@@ -19,7 +19,7 @@ data class CategoryResponse(
     companion object {
         fun from(category: Category): CategoryResponse {
             return CategoryResponse(
-                id = category.id!!,
+                id = category.id,
                 name = category.name,
                 description = category.description,
                 displayOrder = category.displayOrder

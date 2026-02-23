@@ -3,7 +3,7 @@ package com.web3.community.post.service
 import com.web3.community.common.dto.PageResponse
 import com.web3.community.common.exception.BusinessException
 import com.web3.community.common.exception.ErrorCode
-import com.web3.community.post.document.Post
+import com.web3.community.post.entity.Post
 import com.web3.community.post.dto.*
 import com.web3.community.post.repository.PostRepository
 import org.springframework.data.domain.Pageable
@@ -24,16 +24,16 @@ class PostService(
             content = request.content,
             authorId = authorId,
             authorNickname = authorNickname,
-            categoryId = category.id!!,
+            categoryId = category.id,
             categoryName = category.name,
-            tags = request.tags
+            tags = request.tags.toMutableList()
         )
         return PostResponse.from(postRepository.save(post))
     }
 
-    fun getPosts(categoryId: String?, tag: String?, keyword: String?, pageable: Pageable): PageResponse<PostSummaryResponse> {
+    fun getPosts(categoryId: Long?, tag: String?, keyword: String?, pageable: Pageable): PageResponse<PostSummaryResponse> {
         val page = when {
-            !categoryId.isNullOrBlank() -> postRepository.findByCategoryIdAndPublishedTrue(categoryId, pageable)
+            categoryId != null -> postRepository.findByCategoryIdAndPublishedTrue(categoryId, pageable)
             !tag.isNullOrBlank() -> postRepository.findByTagsContaining(tag, pageable)
             !keyword.isNullOrBlank() -> postRepository.findByTitleContainingIgnoreCaseAndPublishedTrue(keyword, pageable)
             else -> postRepository.findByPublishedTrue(pageable)
@@ -50,14 +50,14 @@ class PostService(
         )
     }
 
-    fun getPostById(id: String): PostResponse {
+    fun getPostById(id: Long): PostResponse {
         val post = findPostById(id)
         post.viewCount++
         postRepository.save(post)
         return PostResponse.from(post)
     }
 
-    fun updatePost(id: String, userId: Long, request: UpdatePostRequest): PostResponse {
+    fun updatePost(id: Long, userId: Long, request: UpdatePostRequest): PostResponse {
         val post = findPostById(id)
 
         if (post.authorId != userId) {
@@ -66,10 +66,13 @@ class PostService(
 
         request.title?.let { post.title = it }
         request.content?.let { post.content = it }
-        request.tags?.let { post.tags = it }
+        request.tags?.let {
+            post.tags.clear()
+            post.tags.addAll(it)
+        }
         request.categoryId?.let {
             val category = categoryService.getCategoryById(it)
-            post.categoryId = category.id!!
+            post.categoryId = category.id
             post.categoryName = category.name
         }
         post.updatedAt = LocalDateTime.now()
@@ -77,7 +80,7 @@ class PostService(
         return PostResponse.from(postRepository.save(post))
     }
 
-    fun deletePost(id: String, userId: Long, userRole: String) {
+    fun deletePost(id: Long, userId: Long, userRole: String) {
         val post = findPostById(id)
 
         if (post.authorId != userId && userRole != "ADMIN") {
@@ -89,7 +92,7 @@ class PostService(
         postRepository.save(post)
     }
 
-    fun toggleLike(id: String, userId: Long): PostResponse {
+    fun toggleLike(id: Long, userId: Long): PostResponse {
         val post = findPostById(id)
 
         if (post.likedUserIds.contains(userId)) {
@@ -103,7 +106,7 @@ class PostService(
         return PostResponse.from(postRepository.save(post))
     }
 
-    private fun findPostById(id: String): Post {
+    private fun findPostById(id: Long): Post {
         return postRepository.findById(id)
             .orElseThrow { BusinessException(ErrorCode.POST_NOT_FOUND) }
     }

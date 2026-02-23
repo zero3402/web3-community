@@ -1,15 +1,15 @@
 package com.web3.community.post.dto
 
-import com.web3.community.post.document.Post
+import com.web3.community.post.entity.Post
 import java.time.LocalDateTime
 
 data class PostResponse(
-    val id: String,
+    val id: Long,
     val title: String,
     val content: String,
     val authorId: Long,
     val authorNickname: String,
-    val categoryId: String,
+    val categoryId: Long,
     val categoryName: String,
     val tags: List<String>,
     val viewCount: Long,
@@ -21,7 +21,7 @@ data class PostResponse(
     companion object {
         fun from(post: Post): PostResponse {
             return PostResponse(
-                id = post.id!!,
+                id = post.id,
                 title = post.title,
                 content = post.content,
                 authorId = post.authorId,
@@ -40,7 +40,7 @@ data class PostResponse(
 }
 
 data class PostSummaryResponse(
-    val id: String,
+    val id: Long,
     val title: String,
     val authorNickname: String,
     val categoryName: String,
@@ -53,7 +53,7 @@ data class PostSummaryResponse(
     companion object {
         fun from(post: Post): PostSummaryResponse {
             return PostSummaryResponse(
-                id = post.id!!,
+                id = post.id,
                 title = post.title,
                 authorNickname = post.authorNickname,
                 categoryName = post.categoryName,
