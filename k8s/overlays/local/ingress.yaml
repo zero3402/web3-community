@@ -4,7 +4,7 @@ metadata:
   name: web3-community-ingress
   namespace: web3-community
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   ingressClassName: nginx
   rules:
@@ -18,13 +18,3 @@ spec:
                 name: api-gateway
                 port:
                   number: 8080
-    - host: web3community.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80

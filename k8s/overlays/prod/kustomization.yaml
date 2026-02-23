@@ -1,0 +1,49 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: web3-community
+
+bases:
+  - ../../base
+
+resources:
+  - secrets.yaml
+  - ingress.yaml
+  # HPA (HorizontalPodAutoscaler)
+  - hpa/api-gateway-hpa.yaml
+  - hpa/auth-service-hpa.yaml
+  - hpa/user-service-hpa.yaml
+  - hpa/post-service-hpa.yaml
+  - hpa/comment-service-hpa.yaml
+  # PDB (PodDisruptionBudget)
+  - pdb/api-gateway-pdb.yaml
+  - pdb/auth-service-pdb.yaml
+  - pdb/user-service-pdb.yaml
+  - pdb/post-service-pdb.yaml
+  - pdb/comment-service-pdb.yaml
+
+# prod 이미지 (버전 태그 사용 - CI/CD에서 관리)
+images:
+  - name: web3-community/api-gateway-service
+    newName: ghcr.io/web3-community/api-gateway-service
+    newTag: "1.0.0"
+  - name: web3-community/auth-service
+    newName: ghcr.io/web3-community/auth-service
+    newTag: "1.0.0"
+  - name: web3-community/user-service
+    newName: ghcr.io/web3-community/user-service
+    newTag: "1.0.0"
+  - name: web3-community/post-service
+    newName: ghcr.io/web3-community/post-service
+    newTag: "1.0.0"
+  - name: web3-community/comment-service
+    newName: ghcr.io/web3-community/comment-service
+    newTag: "1.0.0"
+
+patches:
+  - path: patches/app-patch.yaml
+  - path: patches/replicas-patch.yaml
+  - path: patches/mysql-pvc-patch.yaml
+    target:
+      kind: StatefulSet
+      name: mysql

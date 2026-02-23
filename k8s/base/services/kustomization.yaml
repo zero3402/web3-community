@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - api-gateway/deployment.yaml
+  - api-gateway/service.yaml
+  - auth-service/deployment.yaml
+  - auth-service/service.yaml
+  - user-service/deployment.yaml
+  - user-service/service.yaml
+  - post-service/deployment.yaml
+  - post-service/service.yaml
+  - comment-service/deployment.yaml
+  - comment-service/service.yaml

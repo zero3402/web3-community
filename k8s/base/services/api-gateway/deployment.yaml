@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels:
+    app: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: web3-community/api-gateway-service:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "local"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:8081"
+            - name: USER_SERVICE_URL
+              value: "http://user-service:8082"
+            - name: POST_SERVICE_URL
+              value: "http://post-service:8084"
+            - name: COMMENT_SERVICE_URL
+              value: "http://comment-service:8083"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: web3-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

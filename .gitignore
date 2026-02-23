@@ -1,32 +1,69 @@
-# Gradle
+# ===== Gradle =====
 .gradle/
 build/
+*/build/
 !gradle/wrapper/gradle-wrapper.jar
 
-# IDE
+# ===== IDE =====
 .idea/
 *.iml
 *.iws
 *.ipr
 .vscode/
+*.swp
+*.swo
 
-# Kotlin
+# ===== Kotlin / JVM =====
 *.class
 *.jar
 *.war
+hs_err_pid*
+replay_pid*
 
-# Node
+# ===== Node / Frontend =====
 node_modules/
 dist/
+.nuxt/
+.next/
+*.local
 
-# Environment
-.env.local
-.env.*.local
+# ===== Environment Variables (비밀 - 절대 커밋 금지) =====
+.env
+.env.*
+!.env.example
 
-# Logs
+# ===== Logs =====
 logs/
 *.log
+spring.log
 
-# OS
+# ===== OS =====
 .DS_Store
+.DS_Store?
 Thumbs.db
+ehthumbs.db
+
+# ===== Security / Certificates =====
+*.pem
+*.key
+*.p12
+*.jks
+*.cert
+*.crt
+*.pfx
+
+# ===== Kubernetes Secrets (prod: sealed-secrets 또는 Vault 사용) =====
+k8s/overlays/prod/secrets.yaml
+
+# ===== Test / Coverage =====
+coverage/
+jacoco/
+*.exec
+
+# ===== Docker =====
+.docker/
+
+# ===== Misc =====
+*.tmp
+*.bak
+*.orig

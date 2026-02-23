@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mysql
-  namespace: web3-community
 spec:
   serviceName: mysql
   replicas: 1
@@ -30,6 +29,18 @@ spec:
               mountPath: /var/lib/mysql
             - name: mysql-initdb
               mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               memory: "512Mi"
@@ -49,26 +60,3 @@ spec:
         resources:
           requests:
             storage: 5Gi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mysql
-  namespace: web3-community
-spec:
-  selector:
-    app: mysql
-  ports:
-    - port: 3306
-      targetPort: 3306
-  clusterIP: None
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mysql-initdb-config
-  namespace: web3-community
-data:
-  init.sql: |
-    CREATE DATABASE IF NOT EXISTS web3_auth;
-    CREATE DATABASE IF NOT EXISTS web3_user;

@@ -1,0 +1,4 @@
+# MySQL PVC 크기: dev = 5Gi (base 기본값과 동일)
+- op: replace
+  path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+  value: 5Gi

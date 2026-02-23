@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: web3-community
+
+bases:
+  - ../../base
+
+resources:
+  - secrets.yaml
+  - ingress.yaml
+
+# 로컬 이미지 태그 (docker build 후 사용)
+images:
+  - name: web3-community/api-gateway-service
+    newTag: local
+  - name: web3-community/auth-service
+    newTag: local
+  - name: web3-community/user-service
+    newTag: local
+  - name: web3-community/post-service
+    newTag: local
+  - name: web3-community/comment-service
+    newTag: local
+
+patches:
+  # Spring profile + 최소 리소스 패치
+  - path: patches/app-patch.yaml
+  # MySQL PVC 크기 축소 (local: 1Gi)
+  - path: patches/mysql-pvc-patch.yaml
+    target:
+      kind: StatefulSet
+      name: mysql

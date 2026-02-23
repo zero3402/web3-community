@@ -1,0 +1,4 @@
+# MySQL PVC 크기: prod = 20Gi
+- op: replace
+  path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+  value: 20Gi
