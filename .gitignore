@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ============================================================
 # .gitignore - Web3 Community MSA 프로젝트
 # Kotlin / Spring Boot / Gradle / Vue.js 통합 gitignore
@@ -229,5 +230,74 @@ jacoco.xml
 *~
 
 # 백업 파일
+=======
+# ===== Gradle =====
+.gradle/
+build/
+*/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ===== IDE =====
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+
+# ===== Kotlin / JVM =====
+*.class
+*.jar
+*.war
+hs_err_pid*
+replay_pid*
+
+# ===== Node / Frontend =====
+node_modules/
+dist/
+.nuxt/
+.next/
+*.local
+
+# ===== Environment Variables (비밀 - 절대 커밋 금지) =====
+.env
+.env.*
+!.env.example
+
+# ===== Logs =====
+logs/
+*.log
+spring.log
+
+# ===== OS =====
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+
+# ===== Security / Certificates =====
+*.pem
+*.key
+*.p12
+*.jks
+*.cert
+*.crt
+*.pfx
+
+# ===== Kubernetes Secrets (prod: sealed-secrets 또는 Vault 사용) =====
+k8s/overlays/prod/secrets.yaml
+
+# ===== Test / Coverage =====
+coverage/
+jacoco/
+*.exec
+
+# ===== Docker =====
+.docker/
+
+# ===== Misc =====
+*.tmp
+>>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
 *.bak
 *.orig
