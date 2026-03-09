@@ -1,0 +1,35 @@
+# ============================================================
+# namespace.yaml - Web3 Community 네임스페이스 정의
+#
+# 목적:
+#   모든 Web3 Community 관련 리소스를 격리된 네임스페이스에서 관리합니다.
+#   네임스페이스를 통해 다음을 달성합니다:
+#     1. 리소스 격리: 다른 프로젝트/팀의 리소스와 분리
+#     2. 접근 제어: RBAC를 통해 네임스페이스 단위 권한 관리
+#     3. 리소스 쿼터: 네임스페이스 단위로 CPU/메모리 제한 가능
+#     4. 네트워크 정책: 네임스페이스 단위 네트워크 격리 가능
+#
+# 적용 방법:
+#   kubectl apply -f k8s/namespace.yaml
+#
+# 확인 방법:
+#   kubectl get namespace web3-community
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: web3-community
+  labels:
+    # 프로젝트 식별 레이블 (셀렉터에서 사용)
+    app: web3-community
+    # 환경 구분 (dev / staging / prod)
+    environment: prod
+    # 관리 팀 식별
+    team: web3-backend
+  annotations:
+    # 네임스페이스 설명 (운영 가이드용)
+    description: "Web3 Community MSA 플랫폼 - 게시판 + 블록체인 지갑 서비스"
+    # 생성일 기록
+    created-at: "2026-03-09"
+    # 담당 팀 연락처
+    contact: "web3-team@example.com"

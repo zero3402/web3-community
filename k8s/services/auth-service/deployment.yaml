@@ -1,0 +1,205 @@
+# ============================================================
+# auth-service/deployment.yaml - 인증 서비스 Deployment
+#
+# 역할:
+#   사용자 인증 및 인가를 전담하는 서비스.
+#
+# 주요 기능:
+#   - 일반 로그인/회원가입 (이메일+비밀번호)
+#   - 소셜 로그인 (Google, Naver, Kakao OAuth2)
+#   - JWT Access Token 발급 (HS512)
+#   - JWT Refresh Token 발급 및 갱신
+#   - 로그아웃 (Refresh Token 무효화)
+#   - 토큰 검증 엔드포인트 (API Gateway 호출)
+#
+# 기술 스택:
+#   - Spring Boot 3.x (MVC, 동기식)
+#   - Spring Security + OAuth2 Client
+#   - MySQL (사용자 정보)
+#   - Redis (Refresh Token 저장)
+#
+# replicas: 2 (고가용성)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: web3-community
+  labels:
+    app: auth-service
+    version: latest
+    component: authentication
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: auth-service
+
+  # 무중단 롤링 업데이트
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        version: latest
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: auth-service-sa
+
+      # Pod를 서로 다른 노드에 분산 배치
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - auth-service
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: auth-service
+          image: web3community/auth-service:latest
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          env:
+            # JVM 설정 (MVC 스레드 기반, 메모리 효율 중시)
+            - name: JAVA_OPTS
+              value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Seoul"
+
+            - name: SPRING_PROFILES_ACTIVE
+              value: "k8s"
+
+            # MySQL 연결 정보 (Secret에서 주입)
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: MYSQL_JDBC_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: MYSQL_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: MYSQL_PASSWORD
+
+            # Redis 연결 정보 (Refresh Token 저장)
+            - name: SPRING_REDIS_HOST
+              value: "redis.web3-community.svc.cluster.local"
+            - name: SPRING_REDIS_PORT
+              value: "6379"
+            - name: SPRING_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: REDIS_PASSWORD
+
+            # JWT 시크릿 (Secret에서 주입)
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: JWT_ACCESS_SECRET
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: JWT_REFRESH_SECRET
+            - name: JWT_ACCESS_EXPIRATION_MS
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: JWT_ACCESS_EXPIRATION_MS
+            - name: JWT_REFRESH_EXPIRATION_MS
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: JWT_REFRESH_EXPIRATION_MS
+
+            # OAuth2 소셜 로그인 시크릿 (Secret에서 주입)
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            - name: NAVER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: NAVER_CLIENT_SECRET
+            - name: KAKAO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: KAKAO_CLIENT_SECRET
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Spring Boot 시작 완료 확인 (최대 300초 대기)
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+          # 트래픽 수신 준비 확인
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+
+          # Pod 재시작 필요 여부 확인
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+
+      terminationGracePeriodSeconds: 30

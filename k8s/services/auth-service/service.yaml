@@ -1,0 +1,31 @@
+# ============================================================
+# auth-service/service.yaml - 인증 서비스 ClusterIP Service
+#
+# 목적:
+#   auth-service Pod들에 대한 안정적인 내부 네트워크 엔드포인트 제공.
+#   API Gateway에서 JWT 검증 시 이 Service를 호출합니다.
+#
+# 접근 주체:
+#   - API Gateway: 토큰 검증 요청
+#   - 외부 클라이언트: API Gateway를 통해서만 간접 접근
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: web3-community
+  labels:
+    app: auth-service
+    component: authentication
+spec:
+  # ClusterIP: 클러스터 내부 전용 (외부에서 직접 접근 불가)
+  type: ClusterIP
+
+  selector:
+    app: auth-service
+
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

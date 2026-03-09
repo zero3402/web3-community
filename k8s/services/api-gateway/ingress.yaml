@@ -1,0 +1,125 @@
+# ============================================================
+# api-gateway/ingress.yaml - API Gateway Nginx Ingress
+#
+# 목적:
+#   외부 인터넷 트래픽을 클러스터 내부 API Gateway Service로 라우팅합니다.
+#
+# 구성:
+#   - Nginx Ingress Controller 사용 (가장 널리 사용되는 Ingress)
+#   - TLS 종료: cert-manager가 Let's Encrypt 인증서 자동 발급/갱신
+#   - HTTP → HTTPS 자동 리다이렉트
+#   - /api/** 경로만 허용 (다른 경로는 404)
+#
+# 전제 조건:
+#   1. Nginx Ingress Controller 설치:
+#      helm install ingress-nginx ingress-nginx/ingress-nginx
+#
+#   2. cert-manager 설치:
+#      kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.yaml
+#
+#   3. ClusterIssuer 생성 (Let's Encrypt):
+#      k8s/cert/cluster-issuer.yaml 적용
+#
+#   4. DNS 설정:
+#      api.web3community.example.com → Ingress Controller 외부 IP
+#
+# 적용 방법:
+#   kubectl apply -f k8s/services/api-gateway/ingress.yaml -n web3-community
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway-ingress
+  namespace: web3-community
+  labels:
+    app: api-gateway
+    component: ingress
+  annotations:
+    # ============================================================
+    # Nginx Ingress Controller 설정
+    # ============================================================
+    # 이 Ingress를 처리할 Ingress Controller 지정
+    kubernetes.io/ingress.class: "nginx"
+
+    # HTTP → HTTPS 자동 리다이렉트 활성화
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # 프록시 타임아웃 설정 (ms → nginx는 초 단위)
+    # 블록체인 API 응답 대기를 위해 넉넉하게 설정
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+
+    # 요청 본문 최대 크기 (파일 업로드 등)
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+    # ============================================================
+    # cert-manager TLS 인증서 자동 발급 설정
+    # ClusterIssuer: 클러스터 전체에서 사용 가능한 인증서 발급자
+    # ============================================================
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # ============================================================
+    # CORS 설정 (Nginx 레벨)
+    # API Gateway 내부 CORS와 중복되지 않도록 주의
+    # ============================================================
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://web3community.example.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, X-Requested-With"
+
+    # ============================================================
+    # 속도 제한 (DDoS 방어 - Nginx 레벨)
+    # API Gateway 레벨의 Rate Limit과 이중 방어
+    # ============================================================
+    # IP당 초당 최대 요청 수
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    # IP당 동시 연결 수
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+
+    # ============================================================
+    # 보안 헤더 설정
+    # ============================================================
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # XSS 방어
+      add_header X-XSS-Protection "1; mode=block" always;
+      # 클릭재킹 방어
+      add_header X-Frame-Options "DENY" always;
+      # MIME 타입 스니핑 방어
+      add_header X-Content-Type-Options "nosniff" always;
+      # HSTS (HTTPS 강제)
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+      # CSP (Content Security Policy)
+      add_header Content-Security-Policy "default-src 'self'" always;
+
+spec:
+  # ============================================================
+  # TLS 설정
+  # cert-manager가 자동으로 인증서를 발급하고 이 Secret에 저장
+  # ============================================================
+  tls:
+    - hosts:
+        # API 도메인 (실제 운영 도메인으로 변경)
+        - api.web3community.example.com
+      # cert-manager가 생성할 Secret 이름 (TLS 인증서 저장)
+      secretName: api-gateway-tls-secret
+
+  # ============================================================
+  # 라우팅 규칙
+  # ============================================================
+  rules:
+    - host: api.web3community.example.com
+      http:
+        paths:
+          # /api/로 시작하는 모든 경로를 API Gateway로 라우팅
+          - path: /api
+            # Prefix: /api로 시작하는 모든 경로 포함
+            pathType: Prefix
+            backend:
+              service:
+                # 연결할 Service 이름 (service.yaml과 일치)
+                name: api-gateway
+                port:
+                  # Service의 포트 (80 → Pod의 8080)
+                  number: 80

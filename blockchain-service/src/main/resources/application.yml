@@ -1,0 +1,147 @@
+# ============================================================
+# Blockchain Service 애플리케이션 설정
+# ============================================================
+# 블록체인 지갑 생성, 트랜잭션 처리, UTXO/Nonce 관리 서비스 설정
+# 환경변수 참조 형식: ${ENV_VAR:기본값}
+# ============================================================
+
+spring:
+  application:
+    name: blockchain-service  # 서비스 식별자 (로그, 모니터링에 사용)
+
+  # ─── MongoDB 설정 ─────────────────────────────────────────────────────────
+  # Reactive MongoDB Driver 사용 (논블로킹 I/O)
+  # 지갑, UTXO Set, 트랜잭션 히스토리 저장
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017}  # MongoDB 연결 URI
+      database: ${MONGODB_DATABASE:blockchain_db}    # 사용할 데이터베이스 이름
+      # 커넥션 풀 설정 (URI 쿼리 파라미터로도 지정 가능)
+      # maxPoolSize=50&minPoolSize=5&connectTimeoutMS=5000
+
+    # ─── Redis 설정 ───────────────────────────────────────────────────────
+    # Lettuce 기반 비동기 Redis 클라이언트
+    # - DB 0: Nonce 관리 (ETH 트랜잭션 순서 보장)
+    # - DB 1: UTXO 분산 락 (BTC 이중 지불 방지)
+    # - DB 2: 잔액 캐시 (빈번한 잔액 조회 최적화)
+    redis:
+      host: ${REDIS_HOST:localhost}         # Redis 서버 호스트
+      port: ${REDIS_PORT:6379}              # Redis 서버 포트
+      password: ${REDIS_PASSWORD:}          # Redis 비밀번호 (없으면 공란)
+      database: 0                           # 기본 DB (Nonce 관리)
+      timeout: 3000ms                       # 연결 타임아웃
+      lettuce:
+        pool:
+          max-active: 16    # 최대 활성 커넥션 수 (블록체인 동시 처리 고려)
+          max-idle: 8       # 최대 유휴 커넥션 수
+          min-idle: 2       # 최소 유휴 커넥션 수 (워밍업 유지)
+          max-wait: 2000ms  # 커넥션 획득 최대 대기 시간
+
+  # ─── Kafka 설정 ───────────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}  # Kafka 브로커 주소
+
+    # 프로듀서 설정 (트랜잭션 이벤트 발행)
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # 멱등성 프로듀서: exactly-once 전송 보장 (중복 이벤트 방지)
+      properties:
+        enable.idempotence: true
+        acks: all                           # 모든 ISR 확인 후 응답 (데이터 손실 방지)
+        retries: 3                          # 전송 실패 시 재시도 횟수
+        max.in.flight.requests.per.connection: 5
+
+    # 컨슈머 설정 (배치 출금 요청 소비)
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:blockchain-service-group}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest           # 새 컨슈머 그룹은 처음부터 소비
+      enable-auto-commit: false             # 수동 커밋 (처리 완료 후 커밋으로 at-least-once 보장)
+      properties:
+        spring.json.trusted.packages: "com.web3community.*"
+        isolation.level: read_committed     # 트랜잭션 커밋된 메시지만 소비
+
+# ─── 서버 포트 설정 ─────────────────────────────────────────────────────────
+server:
+  port: ${SERVER_PORT:8084}               # blockchain-service 전용 포트
+  netty:
+    connection-timeout: 5s                # Netty 연결 타임아웃
+    idle-timeout: 60s                     # 유휴 연결 타임아웃
+
+# ─── 블록체인 노드 설정 ─────────────────────────────────────────────────────
+blockchain:
+  ethereum:
+    # Infura, Alchemy 등의 노드 제공자 또는 자체 노드 URL
+    # 메인넷 예시: https://mainnet.infura.io/v3/{PROJECT_ID}
+    # 테스트넷 예시: https://sepolia.infura.io/v3/{PROJECT_ID}
+    rpc-url: ${ETH_RPC_URL:https://mainnet.infura.io/v3/your-project-id}
+    # WebSocket URL (실시간 이벤트 구독에 사용)
+    ws-url: ${ETH_WS_URL:wss://mainnet.infura.io/ws/v3/your-project-id}
+    # 체인 ID (메인넷: 1, Sepolia: 11155111, Goerli: 5)
+    chain-id: ${ETH_CHAIN_ID:1}
+    # HTTP 클라이언트 타임아웃 설정 (밀리초)
+    connection-timeout-ms: ${ETH_CONNECTION_TIMEOUT_MS:10000}
+    read-timeout-ms: ${ETH_READ_TIMEOUT_MS:30000}
+    write-timeout-ms: ${ETH_WRITE_TIMEOUT_MS:30000}
+    # EIP-1559 가스 버퍼 배율 (baseFee * 1.2 = 20% 여유)
+    gas-buffer-multiplier: ${ETH_GAS_BUFFER:1.2}
+
+  bitcoin:
+    # Bitcoin 노드 RPC 설정 (Bitcoin Core 또는 ElectrumX)
+    rpc-url: ${BTC_RPC_URL:http://localhost:8332}
+    rpc-user: ${BTC_RPC_USER:bitcoin}
+    rpc-password: ${BTC_RPC_PASSWORD:}
+    # 네트워크 타입: MAINNET, TESTNET3, REGTEST
+    network: ${BTC_NETWORK:MAINNET}
+    # 수수료 추정 API (mempool.space 사용 시)
+    fee-api-url: ${BTC_FEE_API_URL:https://mempool.space/api/v1/fees/recommended}
+    # WalletAppKit 데이터 저장 디렉토리
+    wallet-directory: ${BTC_WALLET_DIR:/data/bitcoin-wallet}
+    # 기본 수수료 (sat/vbyte) - API 호출 실패 시 fallback 값
+    default-fee-rate: ${BTC_DEFAULT_FEE_RATE:10}
+
+  # ─── 키 암호화 설정 ──────────────────────────────────────────────────────
+  # AES-256-GCM으로 개인키 암호화 후 MongoDB 저장
+  crypto:
+    # 마스터 암호화 키 (32바이트, Base64 인코딩)
+    # 운영 환경에서는 반드시 AWS KMS, HashiCorp Vault 등을 사용해야 함
+    master-key: ${CRYPTO_MASTER_KEY:your-base64-encoded-32-byte-master-key}
+    # GCM 태그 길이 (비트)
+    gcm-tag-length: 128
+
+  # ─── UTXO 관리 설정 ──────────────────────────────────────────────────────
+  utxo:
+    # Redis UTXO 락 TTL (초) - 트랜잭션 처리 예상 시간보다 여유있게 설정
+    lock-ttl-seconds: ${UTXO_LOCK_TTL:60}
+    # UTXO 동기화 주기 (초)
+    sync-interval-seconds: ${UTXO_SYNC_INTERVAL:300}
+
+  # ─── Nonce 관리 설정 ──────────────────────────────────────────────────────
+  nonce:
+    # Nonce 반환 큐 처리 주기 (초) - 실패한 트랜잭션의 Nonce 회수
+    return-queue-process-interval-seconds: ${NONCE_RETURN_INTERVAL:30}
+
+# ─── Actuator 설정 ──────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized  # 인증된 사용자에게만 상세 헬스 정보 제공
+
+# ─── 로깅 설정 ──────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.web3community.blockchain: DEBUG        # 서비스 전체 DEBUG 로깅
+    org.web3j: INFO                           # Web3j 라이브러리 INFO
+    org.bitcoinj: INFO                        # BitcoinJ 라이브러리 INFO
+    org.springframework.data.mongodb: INFO    # MongoDB 쿼리 로깅
+    io.lettuce: INFO                          # Redis 클라이언트 로깅
+    org.springframework.kafka: INFO           # Kafka 클라이언트 로깅
+    reactor.netty: INFO                       # Netty 네트워크 로깅
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId}] %logger{36} - %msg%n"

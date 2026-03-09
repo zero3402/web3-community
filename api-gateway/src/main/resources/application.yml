@@ -1,0 +1,158 @@
+server:
+  port: 8080
+  # Netty 기본 설정 (Webflux는 Netty 서버 사용)
+  netty:
+    connection-timeout: 10s
+    idle-timeout: 60s
+
+spring:
+  application:
+    name: api-gateway
+
+  # ── Redis 설정 ──────────────────────────────────────────────────────────────
+  # Rate Limiting 및 세션 공유에 사용
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      # Lettuce 커넥션 풀 (Reactive 환경에서 권장)
+      lettuce:
+        pool:
+          max-active: 8    # 최대 활성 연결 수
+          max-idle: 8      # 최대 유휴 연결 수
+          min-idle: 2      # 최소 유휴 연결 수 (사전 생성)
+          max-wait: -1ms   # 연결 대기 시간 (-1 = 무한 대기)
+      connect-timeout: 2000ms
+      timeout: 5000ms
+
+  # ── Spring Cloud Gateway 라우팅 설정 ────────────────────────────────────────
+  cloud:
+    gateway:
+      # 기본 필터: 모든 라우트에 공통 적용
+      default-filters:
+        # X-Request-ID 헤더 주입 (없을 경우 UUID 자동 생성) - LoggingFilter에서 처리
+        - name: RequestRateLimiter
+          args:
+            # Redis 기반 Rate Limiter 사용 (Spring Cloud Gateway 내장)
+            redis-rate-limiter.replenish-rate: 100      # 초당 토큰 보충량
+            redis-rate-limiter.burst-capacity: 200      # 최대 버스트 허용량
+            redis-rate-limiter.requested-tokens: 1      # 요청당 소비 토큰
+            key-resolver: "#{@ipKeyResolver}"            # IP 기준 제한 (Bean 이름 참조)
+
+      routes:
+        # ── Auth 서비스 ─────────────────────────────────────────────────────
+        # 인증 관련 엔드포인트: 로그인, 회원가입, 토큰 갱신 등
+        # JwtAuthFilter를 적용하지 않음 (비인증 경로)
+        - id: auth-service
+          uri: lb://auth-service          # Eureka에 등록된 서비스명으로 로드밸런싱
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - StripPrefix=2               # /api/v1 접두사 제거 후 upstream 전달
+
+        # ── User 서비스 ────────────────────────────────────────────────────
+        # 회원 프로필, 지갑 정보 등 인증 필요 엔드포인트
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/v1/users/**
+          filters:
+            - StripPrefix=2
+            - JwtAuthFilter                # JWT 검증 후 X-User-Id 헤더 추가
+
+        # ── Board 서비스 ───────────────────────────────────────────────────
+        # 게시글 CRUD, 좋아요/싫어요 등 인증 필요 엔드포인트
+        - id: board-service
+          uri: lb://board-service
+          predicates:
+            - Path=/api/v1/boards/**
+          filters:
+            - StripPrefix=2
+            - JwtAuthFilter
+
+        # ── Blockchain 서비스 ──────────────────────────────────────────────
+        # 지갑 생성/전송, UTXO/Nonce 관리 등 인증 필요 엔드포인트
+        - id: blockchain-service
+          uri: lb://blockchain-service
+          predicates:
+            - Path=/api/v1/blockchain/**
+          filters:
+            - StripPrefix=2
+            - JwtAuthFilter
+
+      # 글로벌 CORS 설정 (CorsConfig Bean과 병행 사용 가능)
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins:
+              - "http://localhost:5173"    # Vue.js Vite 개발 서버
+              - "http://localhost:3000"    # Vue.js 대체 개발 포트
+              - "${FRONTEND_URL:http://localhost:5173}"  # 운영 환경 주입
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowed-headers: "*"
+            allow-credentials: true
+            max-age: 3600                  # Preflight 캐시 시간(초)
+
+    # ── Eureka 클라이언트 설정 ──────────────────────────────────────────────
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+          # 개발 환경: 빠른 등록을 위해 갱신 주기 단축
+          registry-fetch-interval-seconds: 5
+        instance:
+          prefer-ip-address: true          # 호스트명 대신 IP 등록 (컨테이너 환경 대응)
+          lease-renewal-interval-in-seconds: 10
+          lease-expiration-duration-in-seconds: 30
+
+# ── JWT 설정 ──────────────────────────────────────────────────────────────────
+# Auth 서비스와 동일한 시크릿 키를 사용해야 한다
+jwt:
+  secret: ${JWT_SECRET:defaultSecretKeyForDevelopmentOnlyChangeInProduction!!}
+  # 화이트리스트: JWT 인증을 건너뛸 경로 패턴 목록
+  whitelist:
+    - /api/v1/auth/**
+    - /actuator/**
+
+# ── Rate Limit 설정 ───────────────────────────────────────────────────────────
+rate-limit:
+  # IP 기준 Rate Limit (미인증 요청)
+  ip:
+    replenish-rate: 100    # 분당 허용 요청 수
+    burst-capacity: 150    # 순간 최대 허용량
+  # 인증된 사용자 기준 Rate Limit
+  user:
+    replenish-rate: 300    # 분당 허용 요청 수
+    burst-capacity: 500    # 순간 최대 허용량
+
+# ── Actuator 설정 ─────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway  # /actuator/gateway 로 라우트 정보 확인
+  endpoint:
+    health:
+      show-details: always
+  # Micrometer 메트릭 태그 (Prometheus/Grafana 연동 시 사용)
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# ── 로깅 설정 ─────────────────────────────────────────────────────────────────
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.web3community.gateway: DEBUG
+    # 개발 환경에서 요청/응답 헤더 디버깅 시 TRACE로 변경
+    reactor.netty.http.client: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId}] %logger{36} - %msg%n"

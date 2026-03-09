@@ -1,0 +1,320 @@
+# ============================================================
+# docker-compose.yml - Web3 Community 개발 인프라 구성
+#
+# 로컬 개발 환경에서 필요한 모든 인프라 컴포넌트를 정의합니다.
+# 각 서비스는 헬스체크를 통해 의존성 순서대로 기동됩니다.
+#
+# 포트 구성:
+#   - 3306: MySQL (관계형 데이터 - 사용자, 게시글 등)
+#   - 27017: MongoDB (블록체인 트랜잭션 히스토리, 비정형 데이터)
+#   - 6379: Redis (세션, 캐시, UTXO/Nonce 락)
+#   - 2181: Zookeeper (Kafka 코디네이션)
+#   - 9092: Kafka (서비스 간 비동기 이벤트)
+#   - 8080: Kafka UI (개발 편의를 위한 웹 UI)
+#
+# 사용법:
+#   기동: docker-compose up -d
+#   종료: docker-compose down
+#   데이터 포함 완전 삭제: docker-compose down -v
+# ============================================================
+
+version: '3.8'
+
+# ============================================================
+# 네트워크 설정
+# 모든 컨테이너가 동일한 브릿지 네트워크에서 통신
+# ============================================================
+networks:
+  web3-network:
+    driver: bridge
+    name: web3-community-network
+
+# ============================================================
+# 볼륨 설정
+# 컨테이너 재시작 후에도 데이터 유지
+# ============================================================
+volumes:
+  mysql-data:
+    driver: local
+  mongo-data:
+    driver: local
+  redis-data:
+    driver: local
+  kafka-data:
+    driver: local
+  zookeeper-data:
+    driver: local
+  zookeeper-log:
+    driver: local
+
+services:
+
+  # ============================================================
+  # MySQL 8.0 - 관계형 데이터베이스
+  # 사용 서비스: auth-service, user-service, board-service
+  # 저장 데이터: 사용자 정보, 게시글, 댓글, OAuth 토큰 등
+  # ============================================================
+  mysql:
+    image: mysql:8.0
+    container_name: web3-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      # 루트 비밀번호 (운영 환경에서는 secrets 사용)
+      MYSQL_ROOT_PASSWORD: root1234
+      # 애플리케이션 전용 데이터베이스
+      MYSQL_DATABASE: web3db
+      # 애플리케이션 전용 사용자 (최소 권한 원칙)
+      MYSQL_USER: web3user
+      MYSQL_PASSWORD: web3pass
+      # 타임존 설정 (한국 표준시)
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4      # 이모지 포함 전체 유니코드 지원
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+09:00          # 한국 시간대
+      - --lower_case_table_names=1          # 테이블명 대소문자 무시 (Windows 호환)
+      - --innodb-buffer-pool-size=256M      # InnoDB 버퍼 풀 크기 (개발용)
+      - --max-connections=200               # 최대 연결 수
+      - --slow-query-log=1                  # 슬로우 쿼리 로그 활성화
+      - --slow-query-log-file=/var/log/mysql/slow.log
+      - --long-query-time=2                 # 2초 이상 쿼리를 슬로우 쿼리로 분류
+    volumes:
+      # 데이터 영속성 볼륨
+      - mysql-data:/var/lib/mysql
+      # 초기화 SQL 스크립트 (DB 스키마 생성 등)
+      # - ./scripts/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - web3-network
+    # 헬스체크: mysqladmin으로 MySQL 연결 가능 여부 확인
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot1234"]
+      interval: 10s      # 10초마다 체크
+      timeout: 5s        # 5초 내 응답 없으면 실패
+      retries: 5         # 5번 실패 시 unhealthy
+      start_period: 30s  # 컨테이너 시작 후 30초 유예 기간
+
+
+  # ============================================================
+  # MongoDB 7.0 - 문서형 데이터베이스
+  # 사용 서비스: blockchain-service
+  # 저장 데이터: 블록체인 트랜잭션 히스토리, UTXO 정보
+  #
+  # ReplicaSet 구성: 단일 노드이지만 Replica Set으로 설정
+  # - 이유 1: Change Streams 사용 가능 (실시간 데이터 변경 감지)
+  # - 이유 2: 트랜잭션(ACID) 지원 가능
+  # - 이유 3: 운영 환경으로 전환 시 확장 용이
+  # ============================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: web3-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongoroot
+      MONGO_INITDB_ROOT_PASSWORD: mongo1234
+      MONGO_INITDB_DATABASE: web3blockchain
+      TZ: Asia/Seoul
+    # ReplicaSet 모드로 MongoDB 시작
+    command: --replSet rs0 --bind_ip_all --keyFile /etc/mongo-keyfile
+    volumes:
+      - mongo-data:/data/db
+      # ReplicaSet 인증용 키파일 (보안 통신)
+      # - ./scripts/mongo/mongo-keyfile:/etc/mongo-keyfile:ro
+      # ReplicaSet 초기화 스크립트
+      # - ./scripts/mongo/init-replica.js:/docker-entrypoint-initdb.d/init-replica.js
+    networks:
+      - web3-network
+    healthcheck:
+      # MongoDB 연결 가능 여부 확인
+      test: |
+        mongosh --eval "db.adminCommand('ping')" --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+
+  # ============================================================
+  # Redis 7.2 - 인메모리 데이터 저장소
+  # 사용 서비스: api-gateway, auth-service, blockchain-service
+  # 저장 데이터:
+  #   - JWT Refresh Token (TTL: 7일)
+  #   - 사용자 세션 (TTL: 30분)
+  #   - UTXO 분산락 (동시 출금 방지)
+  #   - Ethereum Nonce 관리 (트랜잭션 순서 보장)
+  #   - 게시글 좋아요 카운트 캐시
+  # ============================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: web3-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    # Redis 설정
+    command:
+      - redis-server
+      - --requirepass             # 비밀번호 인증 필수
+      - redis1234
+      - --maxmemory               # 최대 메모리 제한 (개발용 256MB)
+      - 256mb
+      - --maxmemory-policy        # 메모리 초과 시 LRU 기반 키 제거
+      - allkeys-lru
+      - --save                    # 영속성 설정 (60초마다 100개 이상 변경 시 저장)
+      - "60 100"
+      - --loglevel
+      - warning
+    volumes:
+      - redis-data:/data
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis1234", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+
+  # ============================================================
+  # Zookeeper 3.8 - Kafka 코디네이션 서비스
+  # Kafka 클러스터 메타데이터 관리, 브로커 리더 선출
+  # (Kafka 4.x부터는 KRaft 모드로 Zookeeper 불필요하지만 현재는 유지)
+  # ============================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: web3-zookeeper
+    restart: unless-stopped
+    ports:
+      - "2181:2181"
+    environment:
+      # Zookeeper 클라이언트 포트
+      ZOOKEEPER_CLIENT_PORT: 2181
+      # 틱 단위 시간 (밀리초) - 타임아웃 계산 기준
+      ZOOKEEPER_TICK_TIME: 2000
+      # 초기 연결 허용 틱 수 (2000ms * 10 = 20초)
+      ZOOKEEPER_INIT_LIMIT: 10
+      # 동기화 허용 틱 수 (2000ms * 5 = 10초)
+      ZOOKEEPER_SYNC_LIMIT: 5
+      TZ: Asia/Seoul
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+  # ============================================================
+  # Apache Kafka 3.5 - 분산 메시지 스트리밍 플랫폼
+  # 사용 목적:
+  #   - 서비스 간 비동기 이벤트 전달 (느슨한 결합)
+  #   - 블록체인 트랜잭션 처리 대기열
+  #   - 다중 출금 배치 처리
+  # 토픽:
+  #   - user.created: 사용자 생성 이벤트
+  #   - wallet.created: 지갑 생성 완료 이벤트
+  #   - transaction.requested: 트랜잭션 요청
+  #   - transaction.completed: 트랜잭션 완료
+  #   - withdrawal.batch: 다중 출금 배치
+  # ============================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: web3-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy  # Zookeeper 준비 후 기동
+    ports:
+      # 외부(호스트) 접근용 포트
+      - "9092:9092"
+      # JMX 모니터링 포트
+      - "9999:9999"
+    environment:
+      # Zookeeper 연결 주소
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # 브로커 리스너 설정
+      # INTERNAL: 컨테이너 내부 통신 (Docker 네트워크)
+      # EXTERNAL: 호스트 머신 접근용
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # 브로커 ID (클러스터 내 고유 식별자)
+      KAFKA_BROKER_ID: 1
+
+      # 파티션당 복제 팩터 (단일 브로커이므로 1)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # 메시지 보존 설정
+      KAFKA_LOG_RETENTION_HOURS: 168        # 7일 보존
+      KAFKA_LOG_RETENTION_BYTES: 1073741824 # 파티션당 최대 1GB
+      KAFKA_LOG_SEGMENT_BYTES: 104857600    # 세그먼트 크기 100MB
+
+      # 메시지 최대 크기 (블록체인 TX 데이터 고려)
+      KAFKA_MESSAGE_MAX_BYTES: 1048576      # 1MB
+
+      # 자동 토픽 생성 허용 (개발 편의용, 운영에서는 false)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # JMX 설정 (Kafka UI 모니터링용)
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: localhost
+
+      TZ: Asia/Seoul
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+
+  # ============================================================
+  # Kafka UI - Kafka 웹 관리 인터페이스
+  # http://localhost:8080 에서 접근 가능
+  # 기능: 토픽 조회/생성, 메시지 탐색, 컨슈머 그룹 모니터링
+  # ============================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: web3-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy  # Kafka 준비 후 기동
+    ports:
+      - "8080:8080"
+    environment:
+      # Kafka 클러스터 연결 설정
+      KAFKA_CLUSTERS_0_NAME: web3-local          # UI에 표시될 클러스터 이름
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092  # 컨테이너 내부 리스너 사용
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+      # Kafka UI 기본 설정
+      DYNAMIC_CONFIG_ENABLED: "true"            # 동적 설정 변경 허용
+      AUTH_TYPE: "disabled"                      # 개발 환경에서 인증 비활성화
+
+      TZ: Asia/Seoul
+    networks:
+      - web3-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

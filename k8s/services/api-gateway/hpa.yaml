@@ -1,0 +1,95 @@
+# ============================================================
+# api-gateway/hpa.yaml - API Gateway Horizontal Pod Autoscaler
+#
+# 목적:
+#   트래픽 부하에 따라 API Gateway Pod 수를 자동으로 조정합니다.
+#
+# 동작 방식:
+#   1. Metrics Server가 Pod의 CPU 사용률을 수집 (15초 간격)
+#   2. HPA가 현재 사용률 vs 목표 사용률 비교 (30초 간격)
+#   3. 목표 초과 시 Pod 수 증가, 미달 시 Pod 수 감소
+#
+# 스케일 공식:
+#   원하는 레플리카 수 = ceil(현재 레플리카 * (현재 메트릭 / 목표 메트릭))
+#
+# 예시:
+#   - 현재 레플리카: 2, 목표 CPU: 60%, 현재 CPU: 90%
+#   - 계산: ceil(2 * (90 / 60)) = ceil(3) = 3 → 3개로 스케일 아웃
+#
+# 전제 조건:
+#   - Kubernetes Metrics Server 설치 필요
+#   - kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+# ============================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: web3-community
+  labels:
+    app: api-gateway
+    component: autoscaling
+spec:
+  # 스케일 대상 (Deployment 연결)
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+
+  # ============================================================
+  # 레플리카 범위
+  # ============================================================
+  # 최소 Pod 수: 2 (고가용성 보장 - 항상 2개 이상 유지)
+  minReplicas: 2
+  # 최대 Pod 수: 5 (비용 제어 - 무한 증가 방지)
+  maxReplicas: 5
+
+  # ============================================================
+  # 스케일 기준 메트릭
+  # ============================================================
+  metrics:
+    # CPU 사용률 기준 스케일링
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          # AverageUtilization: 모든 Pod의 평균 CPU 사용률
+          type: AverageUtilization
+          # 60%: Pod의 CPU 요청량(requests.cpu) 대비 사용률
+          # 200m(requests) * 60% = 120m 이상 사용 시 스케일 아웃
+          averageUtilization: 60
+
+    # 메모리 사용률 기준 스케일링 (선택적)
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageUtilization
+          # 메모리 70% 이상 시 스케일 아웃
+          averageUtilization: 70
+
+  # ============================================================
+  # 스케일링 동작 세부 설정
+  # 너무 빠른 스케일 업/다운으로 인한 불안정 방지 (Flapping 방지)
+  # ============================================================
+  behavior:
+    # 스케일 업 (Pod 수 증가) 동작
+    scaleUp:
+      # 스케일 업 후 안정화 대기 시간 (초)
+      # 이 시간 동안은 추가 스케일 업 없음
+      stabilizationWindowSeconds: 60
+      policies:
+        # 1분마다 최대 2개 Pod까지 증가 (급격한 스케일 아웃 제한)
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+
+    # 스케일 다운 (Pod 수 감소) 동작
+    scaleDown:
+      # 스케일 다운 후 안정화 대기 시간 (5분)
+      # 트래픽 감소 후 충분히 기다려서 불필요한 스케일 다운/업 반복 방지
+      stabilizationWindowSeconds: 300
+      policies:
+        # 5분마다 최대 1개 Pod씩 감소 (점진적 스케일 인)
+        - type: Pods
+          value: 1
+          periodSeconds: 300

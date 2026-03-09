@@ -1,0 +1,102 @@
+# ============================================================
+# gateway-config.yaml - API Gateway ConfigMap
+#
+# 목적:
+#   API Gateway에서 사용하는 비민감 설정 값들을 관리합니다.
+#   민감한 정보(비밀번호, 키 등)는 절대 ConfigMap에 저장하지 않습니다.
+#   민감 정보는 k8s/secret/ 디렉토리의 Secret 리소스를 사용합니다.
+#
+# 포함 설정:
+#   - 하위 서비스 URL (내부 ClusterIP 서비스 주소)
+#   - HTTP 타임아웃 설정
+#   - 라우팅 설정
+#   - CORS 설정
+#   - 로깅 레벨
+#
+# 적용 방법:
+#   kubectl apply -f k8s/configmap/gateway-config.yaml -n web3-community
+#
+# Pod에서 사용 방법:
+#   envFrom:
+#     - configMapRef:
+#         name: gateway-config
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: web3-community
+  labels:
+    app: api-gateway
+    component: configuration
+data:
+  # ============================================================
+  # Spring Boot 프로파일 설정
+  # ============================================================
+  # 활성 프로파일 (k8s 환경용 설정 파일 사용)
+  SPRING_PROFILES_ACTIVE: "k8s"
+
+  # ============================================================
+  # 하위 서비스 URL (Kubernetes 내부 DNS)
+  # 형식: http://{서비스명}.{네임스페이스}.svc.cluster.local:{포트}
+  # ClusterIP 서비스를 통해 내부 통신 (외부에서 직접 접근 불가)
+  # ============================================================
+  # 인증 서비스 URL
+  AUTH_SERVICE_URL: "http://auth-service.web3-community.svc.cluster.local:8080"
+  # 사용자 서비스 URL
+  USER_SERVICE_URL: "http://user-service.web3-community.svc.cluster.local:8080"
+  # 게시판 서비스 URL
+  BOARD_SERVICE_URL: "http://board-service.web3-community.svc.cluster.local:8080"
+  # 블록체인 서비스 URL
+  BLOCKCHAIN_SERVICE_URL: "http://blockchain-service.web3-community.svc.cluster.local:8080"
+
+  # ============================================================
+  # HTTP 타임아웃 설정 (밀리초 단위)
+  # 블록체인 서비스는 체인 응답 대기로 더 긴 타임아웃 필요
+  # ============================================================
+  # 일반 서비스 연결 타임아웃 (ms)
+  GATEWAY_CONNECT_TIMEOUT: "3000"
+  # 일반 서비스 응답 타임아웃 (ms)
+  GATEWAY_RESPONSE_TIMEOUT: "10000"
+  # 블록체인 서비스 특별 타임아웃 (블록체인 네트워크 응답 대기)
+  BLOCKCHAIN_RESPONSE_TIMEOUT: "60000"
+
+  # ============================================================
+  # CORS (Cross-Origin Resource Sharing) 설정
+  # ============================================================
+  # 허용 오리진 (운영: 실제 도메인으로 변경)
+  CORS_ALLOWED_ORIGINS: "https://web3community.example.com,https://www.web3community.example.com"
+  # 허용 HTTP 메서드
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+  # 허용 헤더
+  CORS_ALLOWED_HEADERS: "Authorization,Content-Type,X-Requested-With,Accept,Origin"
+  # 프리플라이트 요청 캐시 시간 (초)
+  CORS_MAX_AGE: "3600"
+
+  # ============================================================
+  # 라우팅 설정
+  # ============================================================
+  # JWT 검증 없이 접근 가능한 공개 경로 (쉼표 구분)
+  PUBLIC_PATHS: "/api/auth/login,/api/auth/register,/api/auth/refresh,/api/auth/oauth2/**,/actuator/health"
+  # Rate Limiting: 사용자당 분당 최대 요청 수
+  RATE_LIMIT_PER_MINUTE: "100"
+  # Rate Limiting: 버스트 허용 (순간 최대 요청 수)
+  RATE_LIMIT_BURST: "150"
+
+  # ============================================================
+  # 로깅 설정
+  # ============================================================
+  # 루트 로그 레벨
+  LOGGING_LEVEL_ROOT: "INFO"
+  # Spring Cloud Gateway 로그 레벨 (라우팅 디버깅용)
+  LOGGING_LEVEL_GATEWAY: "INFO"
+  # 요청/응답 로깅 활성화 여부
+  LOGGING_REQUEST_ENABLED: "true"
+
+  # ============================================================
+  # Actuator 설정
+  # ============================================================
+  # 노출할 Actuator 엔드포인트
+  MANAGEMENT_ENDPOINTS: "health,info,metrics,prometheus"
+  # 상세 헬스 정보 노출 (항상 - 쿠버네티스 헬스체크용)
+  MANAGEMENT_HEALTH_SHOW_DETAILS: "always"

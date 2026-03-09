@@ -1,0 +1,284 @@
+# ============================================================
+# api-gateway/deployment.yaml - API Gateway Deployment
+#
+# 역할:
+#   모든 클라이언트 요청의 단일 진입점.
+#   Spring Cloud Gateway (WebFlux 기반 리액티브)로 구현.
+#
+# 주요 기능:
+#   - JWT 토큰 검증 (Filter)
+#   - 동적 라우팅 (서비스별 경로 지정)
+#   - Rate Limiting (Redis 기반)
+#   - CORS 처리
+#   - 요청/응답 로깅
+#   - 서킷 브레이커 (Resilience4j)
+#
+# 기술 스택:
+#   - Spring Cloud Gateway (WebFlux, 비동기 논블로킹)
+#   - Kotlin Coroutines
+#   - Redis (Rate Limit, Session)
+#
+# replicas: 2 (고가용성 - 한 노드 장애 시 서비스 지속)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: web3-community
+  labels:
+    app: api-gateway
+    version: latest
+    component: gateway
+spec:
+  # ============================================================
+  # 레플리카 설정
+  # 최소 2개: 롤링 업데이트 중에도 가용성 유지
+  # HPA에 의해 동적으로 조정됨 (hpa.yaml 참조)
+  # ============================================================
+  replicas: 2
+
+  # Pod 선택자 (이 Deployment가 관리할 Pod 식별)
+  selector:
+    matchLabels:
+      app: api-gateway
+
+  # ============================================================
+  # 롤링 업데이트 전략
+  # 무중단 배포를 위한 설정
+  # ============================================================
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # 업데이트 중 최대 초과 생성 Pod 수 (replicas의 25%)
+      maxSurge: 1
+      # 업데이트 중 최대 불가용 Pod 수
+      maxUnavailable: 0  # 0: 항상 replicas 수 유지 (무중단)
+
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        version: latest
+      annotations:
+        # Prometheus 메트릭 수집 설정
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # ============================================================
+      # 서비스 어카운트
+      # Pod가 사용할 Kubernetes API 권한 (최소 권한 원칙)
+      # ============================================================
+      serviceAccountName: api-gateway-sa
+
+      # ============================================================
+      # Pod Anti-Affinity: 서로 다른 노드에 Pod 분산 배치
+      # 동일 노드 장애로 인한 전체 서비스 중단 방지
+      # ============================================================
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - api-gateway
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: api-gateway
+          # 이미지: 사전에 빌드하여 레지스트리에 푸시된 이미지
+          # 운영: 구체적인 태그 사용 권장 (latest 지양)
+          image: web3community/api-gateway:latest
+          # 이미지 풀 정책: Always = 항상 최신 이미지 확인
+          # 운영에서 구체적 태그 사용 시 IfNotPresent 권장
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # ============================================================
+          # 환경 변수 설정
+          # ============================================================
+          env:
+            # JVM 옵션 (컨테이너 메모리 인식 옵션 포함)
+            # -XX:+UseContainerSupport: 컨테이너 메모리 제한 자동 인식
+            # -XX:MaxRAMPercentage=75.0: JVM이 컨테이너 메모리의 75% 사용
+            # -XX:+UseG1GC: G1 GC 사용 (대용량 힙 최적화)
+            # -Xss512k: 스레드 스택 크기 (WebFlux 비동기이므로 작게 설정)
+            - name: JAVA_OPTS
+              value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Xss512k -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Seoul"
+
+            # Spring 프로파일 (k8s 전용 설정 파일 사용)
+            - name: SPRING_PROFILES_ACTIVE
+              value: "k8s"
+
+            # ConfigMap에서 서비스 URL 주입
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: AUTH_SERVICE_URL
+            - name: USER_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: USER_SERVICE_URL
+            - name: BOARD_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: BOARD_SERVICE_URL
+            - name: BLOCKCHAIN_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: BLOCKCHAIN_SERVICE_URL
+
+            # ConfigMap에서 타임아웃 설정 주입
+            - name: GATEWAY_CONNECT_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: GATEWAY_CONNECT_TIMEOUT
+            - name: GATEWAY_RESPONSE_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: gateway-config
+                  key: GATEWAY_RESPONSE_TIMEOUT
+
+            # Secret에서 JWT 키 주입 (민감 정보)
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: JWT_ACCESS_SECRET
+
+            # Redis 비밀번호 (Rate Limiting용)
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: REDIS_PASSWORD
+
+            # Redis 호스트 (내부 서비스)
+            - name: REDIS_HOST
+              value: "redis.web3-community.svc.cluster.local"
+
+            - name: REDIS_PORT
+              value: "6379"
+
+            # Pod 이름을 환경변수로 주입 (로그 추적용)
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
+            # Pod IP를 환경변수로 주입 (로드밸런싱 디버깅용)
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+          # ============================================================
+          # 리소스 요청/제한
+          # requests: 스케줄링 시 보장되는 최소 리소스
+          # limits: 초과 불가능한 최대 리소스
+          # ============================================================
+          resources:
+            requests:
+              cpu: 200m      # 0.2 Core (스케줄링 보장)
+              memory: 256Mi  # 256MB RAM (보장)
+            limits:
+              cpu: 500m      # 0.5 Core (최대)
+              memory: 512Mi  # 512MB RAM (최대, OOM 킬 방지)
+
+          # ============================================================
+          # Startup Probe: 애플리케이션 초기화 완료 확인
+          # Spring Boot 시작이 느릴 수 있어 충분한 시간 부여
+          # failureThreshold * periodSeconds = 최대 대기 시간 (30 * 10 = 300초)
+          # Startup Probe 성공 전에는 Liveness Probe 비활성화
+          # ============================================================
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            # 30번 실패까지 허용 (시작 시간 최대 300초)
+            failureThreshold: 30
+            # 10초마다 확인
+            periodSeconds: 10
+            # 타임아웃 3초
+            timeoutSeconds: 3
+
+          # ============================================================
+          # Readiness Probe: 트래픽 수신 가능 여부 확인
+          # 실패 시 해당 Pod는 Service에서 제외 (요청 전달 안 함)
+          # GC 포즈, 일시적 부하 시 자동으로 트래픽 차단
+          # ============================================================
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            # 처음 확인까지 대기 시간
+            initialDelaySeconds: 10
+            # 확인 주기
+            periodSeconds: 10
+            # 타임아웃
+            timeoutSeconds: 3
+            # 이 횟수 연속 실패 시 Not Ready로 전환
+            failureThreshold: 3
+            # 이 횟수 연속 성공 시 Ready로 복원
+            successThreshold: 1
+
+          # ============================================================
+          # Liveness Probe: Pod 재시작 필요 여부 확인
+          # 실패 시 Pod 재시작 (데드락, 무한루프 등 복구)
+          # Readiness보다 더 관대한 설정 (불필요한 재시작 방지)
+          # ============================================================
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            # 처음 확인까지 대기 (Startup Probe 완료 후 시작됨)
+            initialDelaySeconds: 30
+            # 확인 주기
+            periodSeconds: 15
+            # 타임아웃
+            timeoutSeconds: 5
+            # 이 횟수 연속 실패 시 Pod 재시작
+            failureThreshold: 5
+
+          # ============================================================
+          # 컨테이너 보안 컨텍스트
+          # 최소 권한 원칙 적용
+          # ============================================================
+          securityContext:
+            # root 사용자로 실행 금지
+            runAsNonRoot: true
+            # UID 1000으로 실행 (일반 사용자)
+            runAsUser: 1000
+            # 루트 파일시스템 읽기 전용 (보안 강화)
+            readOnlyRootFilesystem: false  # Spring Boot 임시 파일 필요
+            # 권한 상승 금지
+            allowPrivilegeEscalation: false
+
+      # ============================================================
+      # Pod 보안 컨텍스트
+      # ============================================================
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        # 컨테이너 그룹 ID
+        fsGroup: 2000
+
+      # ============================================================
+      # 정상 종료 대기 시간
+      # Pod 종료 신호(SIGTERM) 후 강제 종료(SIGKILL) 전 대기
+      # 진행 중인 요청 처리 완료 시간
+      # ============================================================
+      terminationGracePeriodSeconds: 30

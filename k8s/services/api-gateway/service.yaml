@@ -1,0 +1,47 @@
+# ============================================================
+# api-gateway/service.yaml - API Gateway Service (ClusterIP)
+#
+# 목적:
+#   API Gateway Pod들에 대한 안정적인 네트워크 엔드포인트 제공.
+#   Ingress에서 이 Service로 트래픽을 전달합니다.
+#
+# 타입: ClusterIP
+#   - 클러스터 내부에서만 접근 가능한 가상 IP 제공
+#   - 외부 접근은 Ingress를 통해서만 허용
+#   - 자동 로드밸런싱 (Pod 간 트래픽 분산)
+#
+# 포트 매핑:
+#   80 (Service) → 8080 (Pod/Container)
+#   클러스터 내부에서는 80 포트로 접근
+#   컨테이너는 8080 포트에서 리스닝
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: web3-community
+  labels:
+    app: api-gateway
+    component: gateway
+  annotations:
+    # Prometheus 서비스 모니터링 설정
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  # ClusterIP: 클러스터 내부 전용 가상 IP 자동 할당
+  type: ClusterIP
+
+  # 이 Service가 연결할 Pod 선택자
+  # Deployment의 Pod 레이블과 일치해야 함
+  selector:
+    app: api-gateway
+
+  ports:
+    # HTTP 포트
+    - name: http
+      # Service가 노출하는 포트 (클러스터 내부에서 이 포트로 접근)
+      port: 80
+      # 실제 Pod 컨테이너의 포트
+      targetPort: 8080
+      protocol: TCP
