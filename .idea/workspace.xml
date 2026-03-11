@@ -1,58 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-<<<<<<< HEAD
-  <component name="ChangeListManager">
-    <list default="true" id="770b86e4-bde2-4571-a605-3bb9b6097bdf" name="Changes" comment="" />
-=======
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/md5-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/md5-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/sha1-checksums.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/checksums/sha1-checksums.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/dependencies-accessors/dependencies-accessors.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/dependencies-accessors/dependencies-accessors.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/executionHistory/executionHistory.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/8.2/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/8.2/fileHashes/fileHashes.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/document/Comment.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/dto/CommentEvent.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/dto/CommentEvent.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/dto/CommentResponse.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/dto/CommentResponse.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/dto/CreateCommentRequest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/dto/CreateCommentRequest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/repository/CommentRepository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/comment-service/src/main/kotlin/com/web3/community/comment/repository/CommentRepository.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/CategoryController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/CategoryController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/PostController.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/controller/PostController.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/document/Category.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/document/Post.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/CategoryRequest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/CategoryRequest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/CreatePostRequest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/CreatePostRequest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/PostResponse.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/PostResponse.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/UpdatePostRequest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/dto/UpdatePostRequest.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/repository/CategoryRepository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/repository/CategoryRepository.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/repository/PostRepository.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/repository/PostRepository.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/service/CategoryService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/service/CategoryService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/service/PostService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/kotlin/com/web3/community/post/service/PostService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/resources/application-dev.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/resources/application-dev.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/resources/application-local.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/resources/application-local.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/post-service/src/main/resources/application-prod.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/post-service/src/main/resources/application-prod.yml" afterDir="false" />
-    </list>
->>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
+    <list default="true" id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-<<<<<<< HEAD
-  <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
-  </component>
-  <component name="ProjectId" id="39A1tU73h93XsJ3VscikWS9jq0y" />
-=======
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
@@ -94,41 +51,35 @@
   &quot;associatedIndex&quot;: 7
 }</component>
   <component name="ProjectId" id="39BPiI6X7mpxygOzQlilr330dbG" />
->>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-<<<<<<< HEAD
-  <component name="PropertiesComponent">
-    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
-    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-=======
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RequestMappingsPanelOrder0&quot;: &quot;0&quot;,
-    &quot;RequestMappingsPanelOrder1&quot;: &quot;1&quot;,
-    &quot;RequestMappingsPanelWidth0&quot;: &quot;75&quot;,
-    &quot;RequestMappingsPanelWidth1&quot;: &quot;75&quot;,
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/sungjun/workspace/my-git/web3-community&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;spring.configuration.checksum&quot;: &quot;d39e495a1f0f4874fc889ad722850a64&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/Applications/IntelliJ IDEA.app/Contents/plugins/javascript-impl/jsLanguageServicesImpl/external&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RequestMappingsPanelOrder0": "0",
+    "RequestMappingsPanelOrder1": "1",
+    "RequestMappingsPanelWidth0": "75",
+    "RequestMappingsPanelWidth1": "75",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "android.gradle.sync.needed": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/Users/sungjun/workspace/my-git/web3-community",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "spring.configuration.checksum": "d39e495a1f0f4874fc889ad722850a64",
+    "ts.external.directory.path": "/Applications/IntelliJ IDEA.app/Contents/plugins/javascript-impl/jsLanguageServicesImpl/external",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/backend/auth-service/src/main/kotlin/com/web3/community" />
@@ -189,21 +140,10 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
->>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-<<<<<<< HEAD
-      <changelist id="770b86e4-bde2-4571-a605-3bb9b6097bdf" name="Changes" comment="" />
-      <created>1770124276609</created>
-      <option name="number" value="Default" />
-      <option name="presentableId" value="Default" />
-      <updated>1770124276609</updated>
-    </task>
-    <servers />
-  </component>
-=======
       <changelist id="15bb6048-f85b-4faa-9ce5-f99f6f99203e" name="Changes" comment="" />
       <created>1770166616339</created>
       <option name="number" value="Default" />
@@ -217,7 +157,8 @@
       <workItem from="1770624208893" duration="1673000" />
       <workItem from="1770625916683" duration="4719000" />
       <workItem from="1770945753496" duration="5179000" />
-      <workItem from="1771811103469" duration="888000" />
+      <workItem from="1771811103469" duration="2425000" />
+      <workItem from="1773189701506" duration="1362000" />
     </task>
     <servers />
   </component>
@@ -235,5 +176,4 @@
       </map>
     </option>
   </component>
->>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
 </project>
