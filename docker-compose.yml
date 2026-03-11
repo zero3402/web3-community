@@ -84,7 +84,7 @@ services:
       # 데이터 영속성 볼륨
       - mysql-data:/var/lib/mysql
       # 초기화 SQL 스크립트 (DB 스키마 생성 등)
-      # - ./scripts/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - web3-network
     # 헬스체크: mysqladmin으로 MySQL 연결 가능 여부 확인

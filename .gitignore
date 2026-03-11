@@ -13,6 +13,7 @@
 .env
 .env.*
 *.env
+!.env.example
 
 # 시크릿/설정 파일
 secrets.yaml
@@ -31,6 +32,9 @@ application-prod.yml
 *.jks
 *.keystore
 *.truststore
+*.cert
+*.crt
+*.pfx
 
 # AWS 자격증명
 .aws/
@@ -45,6 +49,9 @@ gcp-credentials.json
 wallet.json
 keystore/
 
+# Kubernetes Secrets (prod: sealed-secrets 또는 Vault 사용)
+k8s/overlays/prod/secrets.yaml
+
 
 # ============================================================
 # [Gradle] 빌드 도구
@@ -53,11 +60,11 @@ keystore/
 # Gradle 빌드 디렉토리
 .gradle/
 build/
+*/build/
 out/
 
-# Gradle wrapper (필요 시 포함 가능 - 현재는 제외)
-# !gradle/wrapper/gradle-wrapper.jar
-# !gradle/wrapper/gradle-wrapper.properties
+# Gradle wrapper jar는 버전 관리에 포함
+!gradle/wrapper/gradle-wrapper.jar
 
 # Gradle 캐시
 gradle-app.setting
@@ -82,9 +89,14 @@ gradle-app.setting
 *.tar.gz
 *.rar
 
+# JVM 에러 덤프
+hs_err_pid*
+replay_pid*
+
 # Log 파일
 *.log
 logs/
+spring.log
 
 # Heap dump 파일
 *.hprof
@@ -141,9 +153,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Vue.js 빌드 산출물
+# Vue.js / Next.js / Nuxt.js 빌드 산출물
 dist/
 dist-ssr/
+.nuxt/
+.next/
 
 # Vite 캐시
 .vite/
@@ -151,6 +165,7 @@ dist-ssr/
 # 로컬 환경 변수 (Vue.js)
 frontend/.env.local
 frontend/.env.*.local
+*.local
 
 # 테스트 커버리지 리포트
 coverage/
@@ -165,6 +180,7 @@ docker-data/
 mysql-data/
 mongo-data/
 redis-data/
+.docker/
 
 # Docker override 파일 (로컬 개발 전용)
 docker-compose.override.yml
@@ -190,6 +206,7 @@ kubeconfig
 
 # macOS
 .DS_Store
+.DS_Store?
 .AppleDouble
 .LSOverride
 ._*
@@ -211,6 +228,7 @@ $RECYCLE.BIN/
 # JUnit / Kotest 리포트
 test-results/
 **/build/reports/
+jacoco/
 
 # JaCoCo 커버리지 파일
 *.exec
@@ -226,77 +244,7 @@ jacoco.xml
 *.temp
 *.swp
 *.swo
-*~
 
 # 백업 파일
-=======
-# ===== Gradle =====
-.gradle/
-build/
-*/build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# ===== IDE =====
-.idea/
-*.iml
-*.iws
-*.ipr
-.vscode/
-*.swp
-*.swo
-
-# ===== Kotlin / JVM =====
-*.class
-*.jar
-*.war
-hs_err_pid*
-replay_pid*
-
-# ===== Node / Frontend =====
-node_modules/
-dist/
-.nuxt/
-.next/
-*.local
-
-# ===== Environment Variables (비밀 - 절대 커밋 금지) =====
-.env
-.env.*
-!.env.example
-
-# ===== Logs =====
-logs/
-*.log
-spring.log
-
-# ===== OS =====
-.DS_Store
-.DS_Store?
-Thumbs.db
-ehthumbs.db
-
-# ===== Security / Certificates =====
-*.pem
-*.key
-*.p12
-*.jks
-*.cert
-*.crt
-*.pfx
-
-# ===== Kubernetes Secrets (prod: sealed-secrets 또는 Vault 사용) =====
-k8s/overlays/prod/secrets.yaml
-
-# ===== Test / Coverage =====
-coverage/
-jacoco/
-*.exec
-
-# ===== Docker =====
-.docker/
-
-# ===== Misc =====
-*.tmp
->>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
 *.bak
 *.orig
