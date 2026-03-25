@@ -117,11 +117,21 @@ blockchain:
     lock-ttl-seconds: ${UTXO_LOCK_TTL:60}
     # UTXO 동기화 주기 (초)
     sync-interval-seconds: ${UTXO_SYNC_INTERVAL:300}
+    # 이 시간(분) 이상 RESERVED 상태인 UTXO를 자금 동결 방지를 위해 복구
+    stuck-recovery-minutes: ${UTXO_STUCK_RECOVERY_MINUTES:30}
 
   # ─── Nonce 관리 설정 ──────────────────────────────────────────────────────
   nonce:
     # Nonce 반환 큐 처리 주기 (초) - 실패한 트랜잭션의 Nonce 회수
     return-queue-process-interval-seconds: ${NONCE_RETURN_INTERVAL:30}
+
+  # ─── 트랜잭션 모니터링 설정 ───────────────────────────────────────────────
+  transaction:
+    # Mempool drop 판정 기준 (분): 이 시간 이상 경과 후 mempool 미발견 시 drop으로 간주
+    # 네트워크 전파 지연과 구분하기 위해 충분한 여유 설정 (기본 30분)
+    drop-detection-minutes: ${TX_DROP_DETECTION_MINUTES:30}
+    # RBF/재전송 최대 횟수: 초과 시 FAILED 처리하여 무한 재시도 방지
+    max-retry-count: ${TX_MAX_RETRY_COUNT:3}
 
 # ─── Actuator 설정 ──────────────────────────────────────────────────────────
 management:

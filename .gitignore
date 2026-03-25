@@ -248,3 +248,6 @@ jacoco.xml
 # 백업 파일
 *.bak
 *.orig
+
+# AI
+.claude/

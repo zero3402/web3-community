@@ -1,15 +1,9 @@
 {
   "permissions": {
     "allow": [
-<<<<<<< HEAD
-      "Bash(git:*)"
-=======
-      "Bash(find:*)",
-      "Bash(git -C /Users/sungjun/workspace/my-git/web3-community log --oneline -20)",
-      "Bash(ls:*)",
-      "Bash(xargs:*)",
-      "Bash(done)"
->>>>>>> e99bb36544f3b9b12017379cba4ad6bbb3e98b29
+      "Bash(./gradlew :blockchain-service:compileKotlin)",
+      "Bash(gradle :blockchain-service:compileKotlin)",
+      "Bash(java -version)"
     ]
   }
 }

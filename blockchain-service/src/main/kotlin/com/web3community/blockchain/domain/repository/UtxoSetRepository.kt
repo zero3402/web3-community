@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.repository.ReactiveMongoRepository
 import org.springframework.stereotype.Repository
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import java.time.LocalDateTime
 
 /**
  * BTC UTXO Set MongoDB 리포지토리
@@ -57,4 +58,17 @@ interface UtxoSetRepository : ReactiveMongoRepository<UtxoSet, String> {
      * @return 조회된 [UtxoSet] 또는 빈 [Mono]
      */
     fun findByTxidAndVout(txid: String, vout: Int): Mono<UtxoSet>
+
+    /**
+     * 특정 상태이고 lockedAt이 기준 시각 이전인 UTXO 목록 조회
+     *
+     * RESERVED 상태에서 lockedAt이 오래된 UTXO를 찾아 복구 처리에 사용.
+     * BTC 트랜잭션 broadcast 후 오랫동안 CONFIRMED/FAILED 전환이 없는 경우
+     * 자금이 동결되는 것을 방지하기 위해 주기적으로 실행된다.
+     *
+     * @param status 조회할 UTXO 상태
+     * @param lockedAtBefore 이 시각 이전에 잠긴 UTXO만 조회
+     * @return 조건에 맞는 [UtxoSet] [Flux]
+     */
+    fun findByStatusAndLockedAtBefore(status: UtxoStatus, lockedAtBefore: LocalDateTime): Flux<UtxoSet>
 }

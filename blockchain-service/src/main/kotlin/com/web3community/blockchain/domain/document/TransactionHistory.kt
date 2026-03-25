@@ -166,6 +166,38 @@ data class TransactionHistory(
     @Field("errorMessage")
     val errorMessage: String? = null,
 
+    /**
+     * ETH 트랜잭션 nonce
+     * mempool drop 감지 후 Replace-by-Fee 재전송 시 동일 nonce 재사용에 필요.
+     * null이면 재전송 불가 (오래된 레코드 호환용)
+     */
+    @Field("nonce")
+    val nonce: Long? = null,
+
+    /**
+     * ETH 브로드캐스트 시 사용한 gasPrice (wei 단위)
+     * RBF 재전송 시 새 gasPrice = max(current, original * 1.1) 계산에 사용.
+     * 원본 gasPrice를 알아야 최소 10% bump 요건 충족 가능.
+     */
+    @Field("gasPriceWei")
+    val gasPriceWei: BigDecimal? = null,
+
+    /**
+     * RBF/재전송 횟수
+     * 무한 재시도 방지를 위해 최대 재시도 횟수 초과 시 FAILED 처리.
+     * Drop → 재전송 시 +1 증가.
+     */
+    @Field("retryCount")
+    val retryCount: Int = 0,
+
+    /**
+     * BTC 서명된 트랜잭션 hex (재브로드캐스트용)
+     * mempool에서 drop된 BTC tx를 재전송할 때 동일 rawTxHex를 그대로 브로드캐스트.
+     * 개인키는 포함되지 않으므로 저장 안전.
+     */
+    @Field("rawTxHex")
+    val rawTxHex: String? = null,
+
     /** 도큐먼트 생성 시각 */
     @CreatedDate
     @Field("createdAt")

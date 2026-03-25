@@ -25,13 +25,16 @@ import org.bitcoinj.script.ScriptBuilder
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
+import org.springframework.data.redis.core.script.RedisScript
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.math.BigDecimal
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.UUID
 
 /**
  * Bitcoin 트랜잭션 처리 서비스
@@ -78,7 +81,8 @@ class BtcTransactionService(
     private val redisTemplate: ReactiveStringRedisTemplate,
     private val networkParameters: NetworkParameters,
     private val kafkaTemplate: KafkaTemplate<String, String>,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val bitcoinRpcClient: BitcoinRpcClient
 ) {
 
     private val logger = LoggerFactory.getLogger(BtcTransactionService::class.java)
@@ -94,6 +98,27 @@ class BtcTransactionService(
     /** 기본 수수료율 (sat/vbyte) - 수수료 API 실패 시 fallback */
     @Value("\${blockchain.bitcoin.default-fee-rate:10}")
     private var defaultFeeRate: Long = 10L
+
+    /**
+     * Lua 스크립트: lock value가 일치할 때만 삭제 (안전한 lock 해제)
+     *
+     * Redis의 단순 DEL은 lock 보유자 확인 없이 삭제하므로 다른 프로세스의 lock을
+     * 삭제할 수 있다. GET + DEL을 원자적으로 실행하여 자신이 설정한 lock만 삭제.
+     *
+     * KEYS[1] = lock key
+     * ARGV[1] = 이 프로세스가 설정한 lock value (requestId)
+     * Returns: 1 = 삭제 성공, 0 = 다른 프로세스 소유 또는 이미 만료
+     */
+    private val safeUnlockScript = RedisScript.of<Long>(
+        """
+        if redis.call('get', KEYS[1]) == ARGV[1] then
+            return redis.call('del', KEYS[1])
+        else
+            return 0
+        end
+        """.trimIndent(),
+        Long::class.java
+    )
 
     /**
      * BTC 전송
@@ -133,9 +158,12 @@ class BtcTransactionService(
                     return@flatMap Mono.error(BusinessException(ErrorCode.AUTH_002))
                 }
 
-                // AVAILABLE UTXO 전체 조회
-                utxoRepository.findByWalletIdAndStatus(walletId, UtxoStatus.AVAILABLE)
-                    .collectList()
+                // 출금 전 blockchain listunspent와 DB UTXO 동기화:
+                // DB에만 있고 blockchain에 없는 UTXO(외부 사용됨)를 SPENT 처리 후 코인 선택.
+                // ETH nonce와 동일한 원칙: DB만 믿지 않고 blockchain이 진실의 원천.
+                syncUtxosFromBlockchain(walletId, wallet.address)
+                    .then(utxoRepository.findByWalletIdAndStatus(walletId, UtxoStatus.AVAILABLE)
+                    .collectList())
                     .flatMap { availableUtxos ->
                         val amountSatoshi = amount.toLong()
 
@@ -148,10 +176,25 @@ class BtcTransactionService(
                         }
 
                         val totalInput = selectedUtxos.sumOf { it.amount }
-                        // 예상 트랜잭션 크기: 입력당 148 vbytes + 출력당 34 vbytes + 10 vbytes overhead
-                        val estimatedSize = selectedUtxos.size * 148 + 2 * 34 + 10
-                        val fee = estimatedSize * effectiveFeeRate
-                        val change = totalInput - amountSatoshi - fee
+
+                        // P2WPKH 트랜잭션 크기 계산 (SegWit discount 반영)
+                        // - 입력(P2WPKH): 41 base + 107 witness/4 ≈ 68 vbytes  (legacy P2PKH는 148)
+                        // - 출력(P2WPKH): 31 vbytes
+                        // - 오버헤드: version(4) + marker(1) + flag(1) + locktime(4) + varint(2) = 12 vbytes ≈ 11 vbytes
+                        // 잔돈 출력 유무를 고려: 잔돈 있으면 2 outputs, 없으면 1 output
+                        val numInputs = selectedUtxos.size
+                        val feeWith2Outputs = (numInputs * 68L + 2L * 31 + 11) * effectiveFeeRate
+                        val changeWith2Outputs = totalInput - amountSatoshi - feeWith2Outputs
+
+                        // 잔돈이 dust limit(546 sat) 이하면 change output 없이 재계산
+                        val (fee, change) = if (changeWith2Outputs > 546) {
+                            Pair(feeWith2Outputs, changeWith2Outputs)
+                        } else {
+                            val feeWith1Output = (numInputs * 68L + 1L * 31 + 11) * effectiveFeeRate
+                            val changeWith1Output = totalInput - amountSatoshi - feeWith1Output
+                            // 잔돈이 음수(잔액 부족)는 상위에서 처리
+                            Pair(feeWith1Output, changeWith1Output)
+                        }
 
                         if (change < 0) {
                             return@flatMap Mono.error<TransactionResponse>(
@@ -159,8 +202,11 @@ class BtcTransactionService(
                             )
                         }
 
+                        // 요청별 고유 ID — lock value로 사용하여 다른 프로세스 lock 오삭제 방지
+                        val requestId = UUID.randomUUID().toString()
+
                         // Redis 분산 락으로 선택된 UTXO 잠금
-                        lockUtxos(selectedUtxos)
+                        lockUtxos(selectedUtxos, requestId)
                             .flatMap { locked ->
                                 if (!locked) {
                                     return@flatMap Mono.error<TransactionResponse>(
@@ -168,7 +214,7 @@ class BtcTransactionService(
                                     )
                                 }
 
-                                // 개인키 복호화 및 트랜잭션 빌드/서명/브로드캐스트
+                                // 1단계: 개인키 복호화 + 트랜잭션 빌드/서명 (blocking CPU 작업)
                                 Mono.fromCallable {
                                     val privateKeyHex = cryptoUtils.decrypt(
                                         wallet.encryptedPrivateKey, masterKey, userId.toLong()
@@ -176,8 +222,7 @@ class BtcTransactionService(
                                     val ecKey = ECKey.fromPrivate(
                                         java.math.BigInteger(privateKeyHex, 16)
                                     )
-
-                                    buildAndBroadcastBtcTransaction(
+                                    buildBtcTransaction(
                                         ecKey = ecKey,
                                         selectedUtxos = selectedUtxos,
                                         toAddress = toAddress,
@@ -188,15 +233,30 @@ class BtcTransactionService(
                                     )
                                 }
                                     .subscribeOn(Schedulers.boundedElastic())
+                                    // 2단계: Bitcoin Core RPC broadcast (non-blocking)
+                                    // rawTxHex를 Pair로 유지: broadcast 후 TransactionHistory 저장 시 필요
+                                    .flatMap { (localTxHash, rawTxHex) ->
+                                        bitcoinRpcClient.sendRawTransaction(rawTxHex)
+                                            .map { broadcastTxHash ->
+                                                if (broadcastTxHash != localTxHash) {
+                                                    logger.error(
+                                                        "[BtcTransactionService] txid 불일치: local={}, rpc={}",
+                                                        localTxHash, broadcastTxHash
+                                                    )
+                                                    throw BusinessException(ErrorCode.BLOCKCHAIN_007, "txid 불일치")
+                                                }
+                                                Pair(broadcastTxHash, rawTxHex) // rawTxHex 스코프 유지
+                                            }
+                                    }
                                     .onErrorResume { error ->
-                                        // 브로드캐스트 실패 시 UTXO 락 해제
-                                        unlockUtxos(selectedUtxos)
+                                        // 브로드캐스트 실패 시 자신이 획득한 lock만 안전하게 해제
+                                        unlockUtxos(selectedUtxos, requestId)
                                             .then(Mono.error(
                                                 if (error is BusinessException) error
                                                 else BusinessException(ErrorCode.BLOCKCHAIN_007, cause = error)
                                             ))
                                     }
-                                    .flatMap { txHash ->
+                                    .flatMap { (txHash, rawTxHex) ->
                                         // UTXO 상태를 RESERVED로 업데이트
                                         val now = LocalDateTime.now()
                                         val updatedUtxos = selectedUtxos.map { utxo ->
@@ -207,10 +267,12 @@ class BtcTransactionService(
                                             )
                                         }
                                         utxoRepository.saveAll(updatedUtxos).collectList()
-                                            .thenReturn(Pair(txHash, fee))
+                                            .thenReturn(Triple(txHash, fee, rawTxHex)) // rawTxHex 스코프 유지
                                     }
-                                    .flatMap { (txHash, feeSatoshi) ->
+                                    .flatMap { (txHash, feeSatoshi, rawTxHex) ->
                                         // TransactionHistory 저장
+                                        // rawTxHex 저장: mempool drop 시 동일 서명 tx 재브로드캐스트에 사용
+                                        // (BTC는 UTXO 기반이라 동일 서명 tx를 그대로 재전송 가능)
                                         val txHistory = TransactionHistory(
                                             walletId = walletId,
                                             userId = userId,
@@ -221,7 +283,8 @@ class BtcTransactionService(
                                             amount = amount,
                                             fee = BigDecimal.valueOf(feeSatoshi),
                                             txHash = txHash,
-                                            status = TransactionStatus.PENDING
+                                            status = TransactionStatus.PENDING,
+                                            rawTxHex = rawTxHex
                                         )
                                         txHistoryRepository.save(txHistory)
                                     }
@@ -265,8 +328,8 @@ class BtcTransactionService(
             selected.add(utxo)
             accumulated += utxo.amount
 
-            // 현재 선택 기준 예상 수수료 계산
-            val estimatedSize = selected.size * 148 + 2 * 34 + 10
+            // P2WPKH 기준 예상 수수료 계산 (change output 2개 가정 — 보수적 추정)
+            val estimatedSize = selected.size * 68L + 2L * 31 + 11
             val estimatedFee = estimatedSize * feeRate
 
             if (accumulated >= amountSatoshi + estimatedFee) {
@@ -274,80 +337,112 @@ class BtcTransactionService(
             }
         }
 
-        // 최종 확인: 잔액이 충분한지 검사
-        val finalSize = selected.size * 148 + 2 * 34 + 10
+        // 최종 확인: 잔액이 충분한지 검사 (change output 있는 경우 기준)
+        val finalSize = selected.size * 68L + 2L * 31 + 11
         val finalFee = finalSize * feeRate
         return if (accumulated >= amountSatoshi + finalFee) selected else emptyList()
     }
 
     /**
-     * Redis 분산 락으로 선택된 UTXO를 잠근다. (내부 사용)
+     * Redis 분산 락으로 선택된 UTXO를 순차적으로 잠근다. (내부 사용)
      *
-     * 모든 선택된 UTXO에 대해 `utxo:lock:{utxoId}` 키로 NX(Not eXists) SET을 수행한다.
-     * 하나라도 이미 잠겨있으면 전체 잠금을 해제하고 false를 반환한다.
+     * ## 핵심 설계
+     * 1. lock value = requestId (UUID): 어떤 요청이 잠갔는지 추적
+     *    → 다른 프로세스의 lock을 오삭제하는 사고 방지
+     * 2. 순차 실행 (flatMapSequential): 하나 실패 시 즉시 중단
+     *    → 불필요한 lock 획득 최소화, 롤백 대상 명확화
+     * 3. 실패 시 자신이 실제로 획득한 lock만 해제
+     *    → 이전 구현의 "전체 해제" 버그 수정
+     *
+     * ## 이전 구현 버그
+     * ```
+     * A: lock(UTXO1)✓, lock(UTXO2)✗(B가 보유), lock(UTXO3)✓
+     * A: 실패 → unlockUtxos([1,2,3]) → UTXO2 key 삭제 = B의 lock 삭제!
+     * C: UTXO2 lock 성공 → B,C 동시에 UTXO2 사용 = 이중 지불
+     * ```
      *
      * Redis key: `utxo:lock:{utxoId}`
      *
      * @param utxos 잠금할 UTXO 목록
+     * @param requestId 이 요청의 고유 ID (lock value로 사용)
      * @return 모두 잠금 성공 여부 [Mono]
      */
-    private fun lockUtxos(utxos: List<UtxoSet>): Mono<Boolean> {
+    private fun lockUtxos(utxos: List<UtxoSet>, requestId: String): Mono<Boolean> {
         if (utxos.isEmpty()) return Mono.just(false)
 
-        val lockOperations = utxos.map { utxo ->
-            val lockKey = "utxo:lock:${utxo.id}"
-            redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "locked", Duration.ofSeconds(utxoLockTtlSeconds))
-        }
-
-        // 모든 잠금 시도 순차 실행
-        return lockOperations.reduce { acc, mono ->
-            acc.zipWith(mono) { a, b -> a && b }
-        }
-            .flatMap { allLocked ->
-                if (!allLocked) {
-                    // 일부 잠금 실패 시 획득한 잠금 전체 해제
-                    unlockUtxos(utxos).thenReturn(false)
-                } else {
+        // 각 UTXO에 대해 (utxo, 획득 여부) 쌍을 순차적으로 수집
+        // flatMapSequential: 순서 보장하면서 하나씩 실행
+        return Flux.fromIterable(utxos)
+            .flatMapSequential { utxo ->
+                val lockKey = "utxo:lock:${utxo.id}"
+                // lock value = requestId로 설정 — 누가 잠갔는지 식별 가능
+                redisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, requestId, Duration.ofSeconds(utxoLockTtlSeconds))
+                    .map { acquired -> Pair(utxo, acquired == true) }
+            }
+            .collectList()
+            .flatMap { results ->
+                val allLocked = results.all { it.second }
+                if (allLocked) {
                     Mono.just(true)
+                } else {
+                    // 자신이 실제로 획득한 lock만 해제 (second=true인 것만)
+                    val acquiredUtxos = results.filter { it.second }.map { it.first }
+                    if (acquiredUtxos.isNotEmpty()) {
+                        logger.debug(
+                            "[BtcTransactionService] 부분 lock 실패, 획득한 {}개 lock 롤백: requestId={}",
+                            acquiredUtxos.size, requestId
+                        )
+                    }
+                    unlockUtxos(acquiredUtxos, requestId).thenReturn(false)
                 }
             }
     }
 
     /**
-     * Redis에서 UTXO 잠금을 해제한다. (내부 사용)
+     * Redis에서 UTXO 잠금을 안전하게 해제한다. (내부 사용)
+     *
+     * Lua 스크립트로 lock value(requestId)를 확인 후 일치할 때만 삭제.
+     * 단순 DEL 대신 이 방식을 쓰는 이유:
+     * - TTL 만료 후 다른 프로세스가 재획득한 lock을 삭제하는 사고 방지
+     * - 자신이 설정하지 않은 lock을 삭제하는 사고 방지
      *
      * @param utxos 잠금 해제할 UTXO 목록
+     * @param requestId 잠금 시 사용한 requestId (lock value)
      * @return 완료 [Mono]
      */
-    private fun unlockUtxos(utxos: List<UtxoSet>): Mono<Void> {
-        val unlockOps = utxos.map { utxo ->
-            redisTemplate.delete("utxo:lock:${utxo.id}")
-        }
-        return if (unlockOps.isEmpty()) {
-            Mono.empty()
-        } else {
-            unlockOps.reduce { acc, mono -> acc.then(mono) }.then()
-        }
+    private fun unlockUtxos(utxos: List<UtxoSet>, requestId: String): Mono<Void> {
+        if (utxos.isEmpty()) return Mono.empty()
+
+        return Flux.fromIterable(utxos)
+            .flatMap { utxo ->
+                val lockKey = "utxo:lock:${utxo.id}"
+                redisTemplate.execute(
+                    safeUnlockScript,
+                    listOf(lockKey),
+                    listOf(requestId)
+                ).next()
+                    .doOnNext { result ->
+                        if (result == 0L) {
+                            logger.warn(
+                                "[BtcTransactionService] UTXO lock 해제 스킵 (다른 소유자 또는 만료): utxoId={}, requestId={}",
+                                utxo.id, requestId
+                            )
+                        }
+                    }
+            }
+            .then()
     }
 
     /**
      * BitcoinJ로 트랜잭션을 빌드하고 서명한다. (내부 사용)
      *
-     * 선택된 UTXO를 입력으로, 수신 주소와 잔돈 주소를 출력으로 하는
-     * Bitcoin 트랜잭션을 생성하고 서명한다. 브로드캐스트는 실제 환경에서
-     * Bitcoin Core RPC의 `sendrawtransaction`을 통해 수행된다.
+     * broadcast는 호출자가 `bitcoinRpcClient.sendRawTransaction(rawTxHex)`로 수행.
+     * 이 메서드는 순수하게 트랜잭션 구성 + 서명만 담당한다.
      *
-     * @param ecKey 서명에 사용할 EC 키 쌍
-     * @param selectedUtxos 입력으로 사용할 UTXO 목록
-     * @param toAddress 수신 주소
-     * @param fromAddress 잔돈 반환 주소 (지갑 주소)
-     * @param amountSatoshi 전송 금액 (satoshi)
-     * @param feeSatoshi 수수료 (satoshi)
-     * @param changeSatoshi 잔돈 금액 (satoshi)
-     * @return 브로드캐스트된 트랜잭션 해시
+     * @return Pair(txHash, rawTxHex) — txHash는 로컬 계산값, broadcast 후 노드 반환값과 일치해야 함
      */
-    private fun buildAndBroadcastBtcTransaction(
+    private fun buildBtcTransaction(
         ecKey: ECKey,
         selectedUtxos: List<UtxoSet>,
         toAddress: String,
@@ -355,7 +450,7 @@ class BtcTransactionService(
         amountSatoshi: Long,
         feeSatoshi: Long,
         changeSatoshi: Long
-    ): String {
+    ): Pair<String, String> {
         // Bitcoin 트랜잭션 생성
         val tx = Transaction(networkParameters)
 
@@ -383,16 +478,90 @@ class BtcTransactionService(
 
         // 서명된 트랜잭션을 hex로 직렬화
         val rawTxHex = org.bitcoinj.core.Utils.HEX.encode(tx.bitcoinSerialize())
-
-        logger.debug("[BtcTransactionService] 트랜잭션 빌드 완료: size={}bytes, fee={}sat", tx.messageSize, feeSatoshi)
-
-        // 실제 환경: Bitcoin Core RPC sendrawtransaction 호출
-        // 현재는 트랜잭션 해시를 반환 (실제 구현에서는 RPC 연동 필요)
-        // TODO: Bitcoin Core RPC 클라이언트 연동 시 실제 브로드캐스트로 교체
         val txHash = tx.txId.toString()
-        logger.info("[BtcTransactionService] 트랜잭션 브로드캐스트: txHash={}, rawTx={}", txHash, rawTxHex.take(20))
 
-        return txHash
+        logger.debug("[BtcTransactionService] 트랜잭션 빌드/서명 완료: txHash={}, size={}bytes, fee={}sat",
+            txHash, tx.messageSize, feeSatoshi)
+
+        return Pair(txHash, rawTxHex)
+    }
+
+    /**
+     * Bitcoin Core listunspent 결과로 DB UTXO를 동기화한다. (내부 사용)
+     *
+     * ## 동기화 정책
+     * 1. blockchain에만 있고 DB에 없는 UTXO → 신규 수신, DB에 AVAILABLE로 추가
+     * 2. DB에 AVAILABLE이지만 blockchain에 없는 UTXO → 외부 사용됨, SPENT로 업데이트
+     * 3. DB에 RESERVED → 변경하지 않음 (진행 중인 출금)
+     * 4. DB에 SPENT → 변경하지 않음
+     *
+     * ## 왜 출금 직전에 호출하는가
+     * DB UTXO와 blockchain 상태가 불일치하면:
+     * - 실제 spent UTXO를 선택 → Bitcoin Core가 "Input already spent" 거부
+     * - 선택된 UTXO는 Redis lock 획득 후 broadcast 실패 → lock 롤백 필요
+     * - 잔액이 실제보다 크게 표시됨
+     *
+     * @param walletId 지갑 ID
+     * @param address Bitcoin 주소
+     * @return 동기화 완료 [Mono]
+     */
+    private fun syncUtxosFromBlockchain(walletId: String, address: String): Mono<Void> {
+        return bitcoinRpcClient.listUnspent(address)
+            .subscribeOn(Schedulers.boundedElastic())
+            .flatMap { chainUtxos ->
+                // blockchain의 txid:vout 집합
+                val chainUtxoKeys = chainUtxos.associateBy { "${it.txid}:${it.vout}" }
+
+                // DB의 현재 UTXO 전체 조회 (AVAILABLE + RESERVED 포함)
+                utxoRepository.findByWalletIdAndStatus(walletId, UtxoStatus.AVAILABLE)
+                    .mergeWith(utxoRepository.findByWalletIdAndStatus(walletId, UtxoStatus.RESERVED))
+                    .collectList()
+                    .flatMap { dbUtxos ->
+                        val dbUtxoKeys = dbUtxos.associateBy { "${it.txid}:${it.vout}" }
+
+                        // 1. blockchain에는 있고 DB에 없는 UTXO → 신규 수신
+                        val toAdd = chainUtxos.filter { !dbUtxoKeys.containsKey("${it.txid}:${it.vout}") }
+                            .map { unspent ->
+                                UtxoSet(
+                                    walletId = walletId,
+                                    address = address,
+                                    txid = unspent.txid,
+                                    vout = unspent.vout,
+                                    amount = unspent.amountSatoshi,
+                                    scriptPubKey = unspent.scriptPubKey,
+                                    confirmations = unspent.confirmations,
+                                    status = UtxoStatus.AVAILABLE
+                                )
+                            }
+
+                        // 2. DB에 AVAILABLE인데 blockchain에 없는 UTXO → 외부 사용됨
+                        val toMarkSpent = dbUtxos
+                            .filter { it.status == UtxoStatus.AVAILABLE }
+                            .filter { !chainUtxoKeys.containsKey("${it.txid}:${it.vout}") }
+                            .map { it.copy(status = UtxoStatus.SPENT) }
+
+                        if (toAdd.isNotEmpty()) {
+                            logger.info("[BtcTransactionService] 신규 UTXO {}개 추가: walletId={}", toAdd.size, walletId)
+                        }
+                        if (toMarkSpent.isNotEmpty()) {
+                            logger.warn(
+                                "[BtcTransactionService] 외부 사용된 UTXO {}개 SPENT 처리: walletId={}",
+                                toMarkSpent.size, walletId
+                            )
+                        }
+
+                        val addOp = if (toAdd.isNotEmpty()) utxoRepository.saveAll(toAdd).then() else Mono.empty()
+                        val spentOp = if (toMarkSpent.isNotEmpty()) utxoRepository.saveAll(toMarkSpent).then() else Mono.empty()
+
+                        addOp.then(spentOp)
+                    }
+            }
+            .onErrorResume { e ->
+                // RPC 장애 시 동기화 실패 → 경고 로그 후 기존 DB로 진행
+                // 완전 중단 대신 경고: RPC 장애가 출금을 막아서는 안 됨 (이미 정상 확인된 UTXO는 사용 가능)
+                logger.warn("[BtcTransactionService] blockchain UTXO 동기화 실패, DB 기준으로 진행: walletId={}", walletId, e)
+                Mono.empty()
+            }
     }
 
     /**
